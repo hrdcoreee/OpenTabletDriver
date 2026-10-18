@@ -102,6 +102,48 @@ namespace OpenTabletDriver.Daemon
                 await DetectTablets();
                 await SetSettings(Settings);
             };
+
+            OpenTabletDriver.Devices.Android.AndroidTabletHub.TabletAreaSyncRequested += async (widthMm, heightMm, posXMm, posYMm, ratio, scale) =>
+            {
+                _isSyncingFromPhone = true;
+                try
+                {
+                    if (Settings?.Profiles == null) return;
+                    var profile = Settings.Profiles.FirstOrDefault(p => p.Tablet.IndexOf("tabletizer", StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (profile == null) return;
+
+                    if (profile.AbsoluteModeSettings == null)
+                    {
+                        var tabletRef = Driver.Tablets.FirstOrDefault(t => t.Properties.Name.IndexOf("tabletizer", StringComparison.OrdinalIgnoreCase) >= 0);
+                        if (tabletRef != null)
+                        {
+                            profile.AbsoluteModeSettings = AbsoluteModeSettings.GetDefaults(tabletRef.Properties.Specifications.Digitizer);
+                        }
+                    }
+
+                    if (profile.AbsoluteModeSettings != null)
+                    {
+                        profile.AbsoluteModeSettings.Tablet.Width = widthMm;
+                        profile.AbsoluteModeSettings.Tablet.Height = heightMm;
+                        profile.AbsoluteModeSettings.Tablet.X = posXMm;
+                        profile.AbsoluteModeSettings.Tablet.Y = posYMm;
+
+                        await SetSettings(Settings);
+                        await ForceResynchronize();
+
+                        string ratioName = ratio switch { 0 => "16:9", 1 => "4:3", 2 => "Full", _ => $"{ratio}" };
+                        Log.Write(nameof(DriverDaemon), $"Synchronized tablet area from phone: {ratioName} ({scale}%), {widthMm:F1}x{heightMm:F1}mm at ({posXMm:F1}, {posYMm:F1})mm", LogLevel.Info);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Write(nameof(DriverDaemon), $"Failed to synchronize tablet area: {ex.Message}", LogLevel.Warning);
+                }
+                finally
+                {
+                    _isSyncingFromPhone = false;
+                }
+            };
         }
 
         private static IEnumerable<string> safeGetProcessDetails(Process[] processes)
@@ -141,6 +183,7 @@ namespace OpenTabletDriver.Daemon
         private readonly IUpdater? Updater = DesktopInterop.Updater;
         private readonly ISleepDetector? SleepDetector = new SleepDetector();
         private Settings? lastValidSettings;
+        private static bool _isSyncingFromPhone;
 
         private UpdateInfo? _updateInfo;
         private LogFile _logFile;
@@ -459,6 +502,15 @@ namespace OpenTabletDriver.Daemon
 
             absoluteMode.AreaLimiting = settings.EnableAreaLimiting;
             Log.Write(group, $"Ignoring reports outside area: {(absoluteMode.AreaLimiting ? "Enabled" : "Disabled")}");
+
+            if (group.IndexOf("tabletizer", StringComparison.OrdinalIgnoreCase) >= 0 && !_isSyncingFromPhone)
+            {
+                OpenTabletDriver.Devices.Android.AndroidTabletHub.SendAreaConfigToActiveDevice(
+                    settings.Tablet.Width,
+                    settings.Tablet.Height,
+                    settings.Tablet.X,
+                    settings.Tablet.Y);
+            }
         }
 
         private static void SetRelativeModeSettings(InputDeviceTree dev, RelativeOutputMode relativeMode, RelativeModeSettings settings)

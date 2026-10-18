@@ -25,3 +25,6 @@ BenchmarkDotNet.Artifacts/
 # Nix environment
 [Rr]esult
 .data/
+
+# Downloaded tools
+platform-tools/

@@ -14,4 +14,12 @@
     <ProjectReference Include="..\OpenTabletDriver.Desktop\OpenTabletDriver.Desktop.csproj" />
   </ItemGroup>
 
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)..\platform-tools')">
+    <Content Include="$(MSBuildThisFileDirectory)..\platform-tools\**">
+      <Link>platform-tools\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

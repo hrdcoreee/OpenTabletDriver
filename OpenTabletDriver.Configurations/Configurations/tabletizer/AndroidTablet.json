@@ -1,0 +1,34 @@
+{
+  "Name": "tabletizer Android Tablet",
+  "Specifications": {
+    "Digitizer": {
+      "Width": 160,
+      "Height": 90,
+      "MaxX": 32000,
+      "MaxY": 18000
+    },
+    "Pen": {
+      "MaxPressure": 4095,
+      "ButtonCount": 2
+    },
+    "AuxiliaryButtons": null,
+    "MouseButtons": null,
+    "Touch": null
+  },
+  "DigitizerIdentifiers": [
+    {
+      "VendorID": 5824,
+      "ProductID": 1500,
+      "InputReportLength": 12,
+      "OutputReportLength": 0,
+      "ReportParser": "OpenTabletDriver.Configurations.Parsers.FlooGoo.FmaReportParser",
+      "FeatureInitReport": null,
+      "OutputInitReport": null,
+      "DeviceStrings": {},
+      "InitializationStrings": [],
+      "Attributes": {}
+    }
+  ],
+  "AuxiliaryDeviceIdentifiers": [],
+  "Attributes": {}
+}

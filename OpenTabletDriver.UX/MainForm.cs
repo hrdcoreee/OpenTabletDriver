@@ -284,6 +284,9 @@ namespace OpenTabletDriver.UX
             var showTabletDebugger = new Command { MenuText = "Tablet debugger..." };
             showTabletDebugger.Executed += (sender, e) => App.Current.DebuggerWindow.Show();
 
+            var tabletizerSettings = new Command { MenuText = "tabletizer Settings..." };
+            tabletizerSettings.Executed += (sender, e) => new Windows.Tablet.TabletizerConfigDialog().ShowModal(this);
+
             var deviceStringReader = new Command { MenuText = "Device string reader..." };
             deviceStringReader.Executed += (sender, e) => App.Current.StringReaderWindow.Show();
 
@@ -349,6 +352,7 @@ namespace OpenTabletDriver.UX
                         {
                             detectTablet,
                             showTabletDebugger,
+                            tabletizerSettings,
                             deviceStringReader,
                             deviceInitSender,
                         }
@@ -395,21 +399,57 @@ namespace OpenTabletDriver.UX
             return menuBar;
         }
 
-        private void SetTitle(IEnumerable<TabletReference>? tablets = null)
+        private async void SetTitle(IEnumerable<TabletReference>? tablets = null)
         {
             string prefix = $"OpenTabletDriver v{App.Version}";
-            string affix = string.Empty;
-
-            if (tablets?.Any() ?? false)
+            if (tablets == null || !tablets.Any())
             {
-                // Limit to 3 tablets in the title
-                int numTablets = Math.Min(tablets.Count(), 3);
-                affix = string.Join(", ", tablets.Take(numTablets).Select(t => t.Properties.Name));
+                this.Title = prefix;
+                return;
             }
 
-            this.Title = !string.IsNullOrEmpty(affix)
-                ? $"{prefix} - {affix}"
-                : prefix;
+            int numTablets = Math.Min(tablets.Count(), 3);
+            var tabletList = tablets.Take(numTablets).ToList();
+
+            // Set basic title immediately
+            string initialAffix = string.Join(", ", tabletList.Select(t => t.Properties.Name));
+            this.Title = $"{prefix} - {initialAffix}";
+
+            // If tabletizer is connected, fetch connection mode (USB vs Wi-Fi) and IP
+            if (tabletList.Any(t => t.Properties.Name.Contains("tabletizer", StringComparison.OrdinalIgnoreCase)) && App.Driver.IsConnected)
+            {
+                try
+                {
+                    var devices = await App.Driver.Instance.GetDevices();
+                    var tabletizerDevice = devices.FirstOrDefault(d =>
+                        !string.IsNullOrEmpty(d.DevicePath) &&
+                        d.DevicePath.StartsWith("tabletizer://", StringComparison.OrdinalIgnoreCase));
+
+                    if (tabletizerDevice != null && Uri.TryCreate(tabletizerDevice.DevicePath, UriKind.Absolute, out var uri))
+                    {
+                        string connInfo = (uri.Host == "127.0.0.1" || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+                            ? "USB"
+                            : $"Wi-Fi: {uri.Host}";
+
+                        var names = tabletList.Select(t =>
+                        {
+                            if (t.Properties.Name.Contains("tabletizer", StringComparison.OrdinalIgnoreCase))
+                                return $"{t.Properties.Name} ({connInfo})";
+                            return t.Properties.Name;
+                        });
+
+                        string detailedAffix = string.Join(", ", names);
+                        Application.Instance.AsyncInvoke(() =>
+                        {
+                            this.Title = $"{prefix} - {detailedAffix}";
+                        });
+                    }
+                }
+                catch
+                {
+                    // Ignore transient RPC exceptions
+                }
+            }
         }
 
         // ReSharper disable once AsyncVoidMethod
