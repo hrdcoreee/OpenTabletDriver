@@ -3,6 +3,7 @@ using System.CommandLine;
 using System.ComponentModel;
 using System.IO;
 using System.IO.Pipes;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,6 +25,7 @@ namespace OpenTabletDriver.UX
     {
         public bool StartMinimized { get; set; }
         public bool SkipUpdate { get; set; }
+        public bool ShowPenSettings { get; set; }
     }
 
     public sealed class App : ViewModel
@@ -54,6 +56,7 @@ namespace OpenTabletDriver.UX
 
         private static void RunInternal(string platform, CommandLineOptions options)
         {
+            ShowPenSettings = options.ShowPenSettings;
             var app = new Application(platform);
             var mainForm = new MainForm();
             if (options.StartMinimized)
@@ -117,10 +120,16 @@ namespace OpenTabletDriver.UX
                 Description = "Skip checking for updates"
             };
 
+            var penSettingsOption = new Option<bool>("--pensettings", "-pensettings")
+            {
+                Description = "Show Pen Settings tab in the control panel"
+            };
+
             var root = new RootCommand("OpenTabletDriver UX")
             {
                 minimizedOption,
-                skipUpdate
+                skipUpdate,
+                penSettingsOption
             };
 
             var results = root.Parse(args);
@@ -133,9 +142,14 @@ namespace OpenTabletDriver.UX
 
             commandLineOptions.StartMinimized = results.GetValue(minimizedOption);
             commandLineOptions.SkipUpdate = results.GetValue(skipUpdate);
+            commandLineOptions.ShowPenSettings = results.GetValue(penSettingsOption)
+                || args.Any(a => a.Equals("-pensettings", StringComparison.OrdinalIgnoreCase)
+                              || a.Equals("--pensettings", StringComparison.OrdinalIgnoreCase));
 
             return commandLineOptions;
         }
+
+        public static bool ShowPenSettings { get; set; }
 
         public static App Current { get; } = new App();
 

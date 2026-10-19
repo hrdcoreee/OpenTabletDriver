@@ -33,7 +33,8 @@ namespace OpenTabletDriver.UX.Controls
             control.Pages.Add(new TabPage
             {
                 Text = "Pen Settings",
-                Content = penBindingEditor = new PenBindingEditor()
+                Content = penBindingEditor = new PenBindingEditor(),
+                Visible = App.ShowPenSettings
             });
 
             control.Pages.Add(new TabPage
@@ -144,7 +145,7 @@ namespace OpenTabletDriver.UX.Controls
                 SetPageVisibility(connectionPanel, true);
                 SetPageVisibility(outputModeEditor, true);
                 SetPageVisibility(filterEditor, true);
-                SetPageVisibility(penBindingEditor, true);
+                SetPageVisibility(penBindingEditor, App.ShowPenSettings);
                 SetPageVisibility(auxBindingEditor, tablet.Properties.Specifications.AuxiliaryButtons != null);
 
                 for (int i = 0; i < wheelBindingEditors.Count; i++)
