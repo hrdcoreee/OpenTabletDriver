@@ -48,16 +48,23 @@ namespace OpenTabletDriver.UX
                 }
                 else
                 {
-                    using var client = new NamedPipeClientStream(".", APPNAME + ".Singleton", PipeDirection.InOut);
-                    client.Connect();
+                    try
+                    {
+                        using var client = new NamedPipeClientStream(".", APPNAME + ".Singleton", PipeDirection.InOut);
+                        client.Connect(1500);
+                    }
+                    catch
+                    {
+                        // Ignore connection timeout/failures to stale instances
+                    }
                 }
             }
         }
 
         private static void RunInternal(string platform, CommandLineOptions options)
         {
-            ShowPenSettings = options.ShowPenSettings;
             var app = new Application(platform);
+            ShowPenSettings = options.ShowPenSettings;
             var mainForm = new MainForm();
             if (options.StartMinimized)
             {
@@ -158,7 +165,8 @@ namespace OpenTabletDriver.UX
         public static readonly Version AssemblyVersion = Assembly.GetExecutingAssembly().GetName().Version!;
 
         public static DaemonRpcClient Driver { get; } = new DaemonRpcClient("OpenTabletDriver.Daemon");
-        public static Bitmap Logo { get; } = new Bitmap(Assembly.GetExecutingAssembly().GetManifestResourceStream("OpenTabletDriver.UX.Assets.otd.png")!);
+        private static Bitmap? logo;
+        public static Bitmap Logo => logo ??= new Bitmap(Assembly.GetExecutingAssembly().GetManifestResourceStream("OpenTabletDriver.UX.Assets.otd.png")!);
 
         public static Uri Website { get; } = new Uri(@"https://github.com/OpenTabletDriver/OpenTabletDriver");
         public static string License { get; } = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream("OpenTabletDriver.UX.LICENSE")!).ReadToEnd();
