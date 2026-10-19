@@ -36,7 +36,7 @@ namespace OpenTabletDriver.UX.Windows
         public AboutWindow()
             : base(Application.Instance.MainForm)
         {
-            Title = "About OpenTabletDriver";
+            Title = "About tabletizer";
 
             _tabControl = new TabControl();
 
@@ -74,20 +74,20 @@ namespace OpenTabletDriver.UX.Windows
                     },
                     new Label
                     {
-                        Text = "OpenTabletDriver",
+                        Text = "tabletizer",
                         Font = SystemFonts.Bold(LARGE_FONTSIZE),
                     },
                     new Label
                     {
-                        Text = $"v{App.Version}",
+                        Text = $"v{App.Version} (OpenTabletDriver tabletizer Edition)",
                     },
                     new Label
                     {
-                        Text = "Open source, cross-platform tablet configurator",
+                        Text = "Android phone/tablet drawing tablet bridge",
                     },
                     new LinkButton
                     {
-                        Text = "OpenTabletDriver Github Repository",
+                        Text = "tabletizer Repository",
                         Command = new Command((_, _) => Application.Instance.Open(App.Website.ToString())),
                     },
                     new CommandLabel

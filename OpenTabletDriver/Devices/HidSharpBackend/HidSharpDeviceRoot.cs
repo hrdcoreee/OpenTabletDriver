@@ -7,7 +7,7 @@ using OpenTabletDriver.Plugin.Devices;
 
 namespace OpenTabletDriver.Devices.HidSharpBackend
 {
-    [DeviceHub]
+    // [DeviceHub] - Disabled: tabletizer-only mode
     public class HidSharpDeviceRootHub : IDeviceHub
     {
         public HidSharpDeviceRootHub()

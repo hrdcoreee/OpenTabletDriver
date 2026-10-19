@@ -13,6 +13,7 @@ namespace OpenTabletDriver.Devices.Android
         );
 
         private static TabletizerConfig? _instance;
+        private static DateTime _lastLoadedTimestamp;
         private static readonly object _lock = new();
 
         public static TabletizerConfig Instance
@@ -21,7 +22,20 @@ namespace OpenTabletDriver.Devices.Android
             {
                 lock (_lock)
                 {
-                    return _instance ??= Load();
+                    try
+                    {
+                        var lastWrite = File.Exists(ConfigPath) ? File.GetLastWriteTimeUtc(ConfigPath) : DateTime.MinValue;
+                        if (_instance == null || lastWrite > _lastLoadedTimestamp)
+                        {
+                            _instance = Load();
+                            _lastLoadedTimestamp = lastWrite;
+                        }
+                    }
+                    catch
+                    {
+                        _instance ??= new TabletizerConfig();
+                    }
+                    return _instance;
                 }
             }
         }
@@ -66,6 +80,7 @@ namespace OpenTabletDriver.Devices.Android
 
                     string json = JsonConvert.SerializeObject(this, Formatting.Indented);
                     File.WriteAllText(ConfigPath, json);
+                    _lastLoadedTimestamp = File.GetLastWriteTimeUtc(ConfigPath);
                     Changed?.Invoke();
                 }
                 catch

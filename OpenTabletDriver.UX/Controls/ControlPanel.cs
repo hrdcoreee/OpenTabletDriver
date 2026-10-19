@@ -58,11 +58,18 @@ namespace OpenTabletDriver.UX.Controls
 
             control.Pages.Add(new TabPage
             {
+                Text = "Connection",
+                Padding = 5,
+                Content = connectionPanel = new()
+            });
+
+            control.Pages.Add(new TabPage
+            {
                 Text = "Info",
                 Padding = 5,
                 Content = placeholder = new Placeholder
                 {
-                    Text = "No tablets are detected."
+                    Text = "Waiting for tabletizer connection...\n\nConnect via USB (ADB) or open the tabletizer app over Wi-Fi."
                 }
             });
 
@@ -95,6 +102,7 @@ namespace OpenTabletDriver.UX.Controls
 
         private TabControl tabControl;
         private Placeholder placeholder;
+        private TabletizerConnectionPanel connectionPanel;
         private LogView logView;
         private OutputModeEditor outputModeEditor;
         private BindingEditor penBindingEditor, auxBindingEditor, mouseBindingEditor;
@@ -133,6 +141,7 @@ namespace OpenTabletDriver.UX.Controls
                 bool switchToOutput = tabControl.SelectedPage == placeholder.Parent;
 
                 SetPageVisibility(placeholder, false);
+                SetPageVisibility(connectionPanel, true);
                 SetPageVisibility(outputModeEditor, true);
                 SetPageVisibility(filterEditor, true);
                 SetPageVisibility(penBindingEditor, true);
@@ -150,6 +159,7 @@ namespace OpenTabletDriver.UX.Controls
             else
             {
                 SetPageVisibility(placeholder, true);
+                SetPageVisibility(connectionPanel, true);
                 SetPageVisibility(outputModeEditor, false);
                 SetPageVisibility(filterEditor, false);
                 SetPageVisibility(penBindingEditor, false);
@@ -159,7 +169,7 @@ namespace OpenTabletDriver.UX.Controls
                 SetPageVisibility(mouseBindingEditor, false);
                 SetPageVisibility(toolEditor, false);
 
-                if (tabControl.SelectedPage != logView.Parent)
+                if (tabControl.SelectedPage != logView.Parent && tabControl.SelectedPage != connectionPanel.Parent)
                 {
                     tabControl.SelectedIndex = Profile == null ?
                         tabControl.Pages.IndexOf(placeholder.Parent as TabPage) :

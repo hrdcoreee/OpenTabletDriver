@@ -109,7 +109,7 @@ namespace OpenTabletDriver.UX
         private readonly MenuBar fullMenu;
         private readonly Placeholder placeholder = new()
         {
-            Text = "Connecting to OpenTabletDriver Daemon...",
+            Text = "Connecting to tabletizer daemon...",
         };
 
         private TrayIcon? trayIcon;
@@ -284,14 +284,8 @@ namespace OpenTabletDriver.UX
             var showTabletDebugger = new Command { MenuText = "Tablet debugger..." };
             showTabletDebugger.Executed += (sender, e) => App.Current.DebuggerWindow.Show();
 
-            var tabletizerSettings = new Command { MenuText = "tabletizer Settings..." };
+            var tabletizerSettings = new Command { MenuText = "Connection settings..." };
             tabletizerSettings.Executed += (sender, e) => new Windows.Tablet.TabletizerConfigDialog().ShowModal(this);
-
-            var deviceStringReader = new Command { MenuText = "Device string reader..." };
-            deviceStringReader.Executed += (sender, e) => App.Current.StringReaderWindow.Show();
-
-            var deviceInitSender = new Command { MenuText = "Device init sender..." };
-            deviceInitSender.Executed += (sender, e) => App.Current.InitSenderWindow.Show();
 
             var pluginManager = new Command { MenuText = "Open Plugin Manager..." };
             pluginManager.Executed += (sender, e) => App.Current.PluginManagerWindow.Show();
@@ -344,17 +338,16 @@ namespace OpenTabletDriver.UX
                             }
                         }
                     },
-                    // Tablets submenu
+                    // tabletizer submenu
                     new ButtonMenuItem
                     {
-                        Text = "Tablets",
+                        Text = "tabletizer",
                         Items =
                         {
                             detectTablet,
-                            showTabletDebugger,
                             tabletizerSettings,
-                            deviceStringReader,
-                            deviceInitSender,
+                            new SeparatorMenuItem(),
+                            showTabletDebugger,
                         }
                     },
                     // Plugins submenu
@@ -401,10 +394,10 @@ namespace OpenTabletDriver.UX
 
         private async void SetTitle(IEnumerable<TabletReference>? tablets = null)
         {
-            string prefix = $"OpenTabletDriver v{App.Version}";
+            const string prefix = "tabletizer";
             if (tablets == null || !tablets.Any())
             {
-                this.Title = prefix;
+                this.Title = $"{prefix} - Waiting for connection...";
                 return;
             }
 
@@ -412,11 +405,10 @@ namespace OpenTabletDriver.UX
             var tabletList = tablets.Take(numTablets).ToList();
 
             // Set basic title immediately
-            string initialAffix = string.Join(", ", tabletList.Select(t => t.Properties.Name));
-            this.Title = $"{prefix} - {initialAffix}";
+            this.Title = $"{prefix} - Connected";
 
             // If tabletizer is connected, fetch connection mode (USB vs Wi-Fi) and IP
-            if (tabletList.Any(t => t.Properties.Name.Contains("tabletizer", StringComparison.OrdinalIgnoreCase)) && App.Driver.IsConnected)
+            if (App.Driver.IsConnected)
             {
                 try
                 {
@@ -431,17 +423,9 @@ namespace OpenTabletDriver.UX
                             ? "USB"
                             : $"Wi-Fi: {uri.Host}";
 
-                        var names = tabletList.Select(t =>
-                        {
-                            if (t.Properties.Name.Contains("tabletizer", StringComparison.OrdinalIgnoreCase))
-                                return $"{t.Properties.Name} ({connInfo})";
-                            return t.Properties.Name;
-                        });
-
-                        string detailedAffix = string.Join(", ", names);
                         Application.Instance.AsyncInvoke(() =>
                         {
-                            this.Title = $"{prefix} - {detailedAffix}";
+                            this.Title = $"{prefix} - {connInfo}";
                         });
                     }
                 }
