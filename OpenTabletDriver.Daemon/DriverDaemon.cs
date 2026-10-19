@@ -247,8 +247,16 @@ namespace OpenTabletDriver.Daemon
             return await GetTablets();
         }
 
+        private int _settingsFailureDepth;
+
         public Task SetSettings(Settings? settings)
         {
+            if (_settingsFailureDepth > 2)
+            {
+                Log.Write("Settings", "Aborting recursive SetSettings to prevent stack overflow.", LogLevel.Error);
+                return Task.CompletedTask;
+            }
+
             try
             {
                 foreach (var dev in Driver.InputDevices)
@@ -317,17 +325,36 @@ namespace OpenTabletDriver.Daemon
                 lastValidSettings = settings;
                 return Task.CompletedTask;
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Write("Settings", $"Error applying settings: {ex.Message}", LogLevel.Error);
+
+                _settingsFailureDepth++;
                 try
                 {
-                    SetSettings(lastValidSettings);
-                    Log.Write("Settings", "Failed to apply settings. Reverted to last valid settings.", LogLevel.Error, true);
+                    if (lastValidSettings != null && _settingsFailureDepth == 1)
+                    {
+                        try
+                        {
+                            SetSettings(lastValidSettings);
+                            Log.Write("Settings", "Failed to apply settings. Reverted to last valid settings.", LogLevel.Error, true);
+                            return Task.CompletedTask;
+                        }
+                        catch (Exception revertEx)
+                        {
+                            Log.Write("Settings", $"Failed to revert to last valid settings: {revertEx.Message}", LogLevel.Warning);
+                        }
+                    }
+
+                    if (_settingsFailureDepth <= 2)
+                    {
+                        RecoverSettings(settings);
+                        Log.Write("Settings", "Failed to apply settings. Attempted recovery. Some settings may have been lost.", LogLevel.Error, true);
+                    }
                 }
-                catch
+                finally
                 {
-                    RecoverSettings(settings);
-                    Log.Write("Settings", "Failed to apply settings. Attempted recovery. Some settings may have been lost.", LogLevel.Error, true);
+                    _settingsFailureDepth--;
                 }
 
                 Resynchronize?.Invoke(this, EventArgs.Empty);

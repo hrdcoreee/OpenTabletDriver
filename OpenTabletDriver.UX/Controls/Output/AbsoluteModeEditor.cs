@@ -204,6 +204,12 @@ namespace OpenTabletDriver.UX.Controls.Output
             // Avoids looping
             handlingArLock = true;
 
+            if (!tabletAreaEditor.FullAreaBounds.HasValue)
+            {
+                handlingArLock = false;
+                return;
+            }
+
             var displayRatio = displayAreaEditor.Area!.Width / displayAreaEditor.Area!.Height;
 
             var tryHeightFirst = sender == tabletWidth || sender == displayHeight || sender == tabletAreaEditor || sender == displayAreaEditor && displayRatio <= 1;
@@ -211,7 +217,7 @@ namespace OpenTabletDriver.UX.Controls.Output
 
             if (tryHeightFirst)
             {
-                var fullHeight = tabletAreaEditor.FullAreaBounds!.Value.Height;
+                var fullHeight = tabletAreaEditor.FullAreaBounds.Value.Height;
                 var scaledHeight = displayHeight.DataValue / displayWidth.DataValue * tabletWidth.DataValue;
                 if (scaledHeight > fullHeight)
                 {
@@ -225,7 +231,7 @@ namespace OpenTabletDriver.UX.Controls.Output
             }
             else if (tryWidthFirst)
             {
-                var fullWidth = tabletAreaEditor.FullAreaBounds!.Value.Width;
+                var fullWidth = tabletAreaEditor.FullAreaBounds.Value.Width;
                 var scaledWidth = displayWidth.DataValue / displayHeight.DataValue * tabletHeight.DataValue;
                 if (scaledWidth > fullWidth)
                 {
@@ -255,10 +261,9 @@ namespace OpenTabletDriver.UX.Controls.Output
         {
             if (sender is not AreaDisplay display) return;
 
-            if (!handlingForcedArConstraint && !handlingSettingsChanging && display.LockToUsableArea && display.Area != null)
+            if (!handlingForcedArConstraint && !handlingSettingsChanging && display.LockToUsableArea && display.Area != null && display.FullAreaBounds.HasValue)
             {
                 handlingForcedArConstraint = true;
-                Debug.Assert(display.FullAreaBounds.HasValue);
                 var fullBounds = display.FullAreaBounds.Value;
 
                 if (fullBounds.Width != 0 && fullBounds.Height != 0)
@@ -282,7 +287,9 @@ namespace OpenTabletDriver.UX.Controls.Output
 
         private static Vector2 GetOutOfBoundsAmount(AreaDisplay display, float X, float Y)
         {
-            Debug.Assert(display.FullAreaBounds.HasValue);
+            if (!display.FullAreaBounds.HasValue)
+                return Vector2.Zero;
+
             var bounds = display.FullAreaBounds.Value;
             bounds.X = 0;
             bounds.Y = 0;
