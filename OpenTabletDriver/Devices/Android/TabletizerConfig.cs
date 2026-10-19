@@ -6,11 +6,38 @@ namespace OpenTabletDriver.Devices.Android
 {
     public class TabletizerConfig
     {
-        private static readonly string ConfigPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "OpenTabletDriver",
-            "tabletizer.json"
-        );
+        private static string ConfigPath
+        {
+            get
+            {
+                string userdataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "userdata");
+                if (!Directory.Exists(userdataDir))
+                {
+                    try { Directory.CreateDirectory(userdataDir); } catch { }
+                }
+                string localPath = Path.Combine(userdataDir, "tabletizer.json");
+
+                // One-time migration from old AppData location if it exists and local doesn't
+                if (!File.Exists(localPath))
+                {
+                    try
+                    {
+                        string oldAppData = Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "OpenTabletDriver",
+                            "tabletizer.json"
+                        );
+                        if (File.Exists(oldAppData))
+                        {
+                            File.Copy(oldAppData, localPath, overwrite: false);
+                        }
+                    }
+                    catch { }
+                }
+
+                return localPath;
+            }
+        }
 
         private static TabletizerConfig? _instance;
         private static DateTime _lastLoadedTimestamp;

@@ -54,19 +54,19 @@ namespace OpenTabletDriver.Desktop
             {
                 PluginPlatform.Windows => new AppInfo
                 {
-                    AppDataDirectory = GetExistingPathOrLast(Path.Join(ProgramDirectory, "userdata"), "$LOCALAPPDATA\\OpenTabletDriver"),
+                    AppDataDirectory = EnsureDirectoryExists(Path.Join(ProgramDirectory, "userdata"))!,
                 },
                 PluginPlatform.Linux => new AppInfo
                 {
-                    AppDataDirectory = GetExistingPathOrLast(Path.Join(ProgramDirectory, "userdata"), Path.Join(UnixXdgPath.ConfigHome, "OpenTabletDriver")),
-                    TemporaryDirectory = GetPath(Path.Join(UnixXdgPath.RuntimeDir, "OpenTabletDriver")),
-                    CacheDirectory = GetPath(Path.Join(UnixXdgPath.CacheHome, "OpenTabletDriver")),
+                    AppDataDirectory = EnsureDirectoryExists(Path.Join(ProgramDirectory, "userdata"))!,
+                    TemporaryDirectory = EnsureDirectoryExists(Path.Join(ProgramDirectory, "userdata", "Temp")),
+                    CacheDirectory = EnsureDirectoryExists(Path.Join(ProgramDirectory, "userdata", "Cache")),
                 },
                 PluginPlatform.MacOS => new AppInfo()
                 {
-                    AppDataDirectory = GetExistingPathOrLast(Path.Join(ProgramDirectory, "userdata"), "~/Library/Application Support/OpenTabletDriver"),
-                    TemporaryDirectory = GetPath("$TMPDIR/OpenTabletDriver"),
-                    CacheDirectory = GetPath("~/Library/Caches/OpenTabletDriver"),
+                    AppDataDirectory = EnsureDirectoryExists(Path.Join(ProgramDirectory, "userdata"))!,
+                    TemporaryDirectory = EnsureDirectoryExists(Path.Join(ProgramDirectory, "userdata", "Temp")),
+                    CacheDirectory = EnsureDirectoryExists(Path.Join(ProgramDirectory, "userdata", "Cache")),
                 },
                 _ => throw new InvalidOperationException($"Unsupported platform {SystemInterop.CurrentPlatform}"),
             };
@@ -181,8 +181,6 @@ namespace OpenTabletDriver.Desktop
                 Path.Join(ProgramDirectory, "Configurations"),
                 Path.Join(Environment.CurrentDirectory, "Configurations")
             ];
-            if (SystemInterop.CurrentPlatform == PluginPlatform.Linux)
-                paths.Insert(0, Path.Join(UnixXdgPath.DataHome, "OpenTabletDriver/Configurations"));
             if (CommandLineConfigurationDirectory != null)
                 paths.Insert(0, CommandLineConfigurationDirectory);
 

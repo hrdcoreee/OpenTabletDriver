@@ -284,9 +284,6 @@ namespace OpenTabletDriver.UX
             var showTabletDebugger = new Command { MenuText = "Tablet debugger..." };
             showTabletDebugger.Executed += (sender, e) => App.Current.DebuggerWindow.Show();
 
-            var tabletizerSettings = new Command { MenuText = "Connection settings..." };
-            tabletizerSettings.Executed += (sender, e) => new Windows.Tablet.TabletizerConfigDialog().ShowModal(this);
-
             var pluginManager = new Command { MenuText = "Open Plugin Manager..." };
             pluginManager.Executed += (sender, e) => App.Current.PluginManagerWindow.Show();
 
@@ -338,15 +335,13 @@ namespace OpenTabletDriver.UX
                             }
                         }
                     },
-                    // tabletizer submenu
+                    // Tablet submenu
                     new ButtonMenuItem
                     {
-                        Text = "tabletizer",
+                        Text = "Tablet",
                         Items =
                         {
                             detectTablet,
-                            tabletizerSettings,
-                            new SeparatorMenuItem(),
                             showTabletDebugger,
                         }
                     },

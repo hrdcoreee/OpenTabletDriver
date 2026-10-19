@@ -364,19 +364,18 @@ namespace OpenTabletDriver.Devices.Android
         private static string? FindAdbPath()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string userdataDir = Path.Combine(baseDir, "userdata");
 
             var candidates = new List<string?>
             {
                 Path.Combine(baseDir, "platform-tools", "adb.exe"),
                 Path.Combine(baseDir, "adb.exe"),
-                Path.Combine(localAppData, "OpenTabletDriver", "platform-tools", "adb.exe"),
-                Path.Combine(localAppData, "OpenTabletDriver", "platform-tools", "platform-tools", "adb.exe"),
-                Path.Combine(localAppData, "OpenTabletDriver", "adb.exe"),
+                Path.Combine(userdataDir, "platform-tools", "adb.exe"),
+                Path.Combine(userdataDir, "platform-tools", "platform-tools", "adb.exe"),
+                Path.Combine(userdataDir, "adb.exe"),
                 Path.Combine(Environment.GetEnvironmentVariable("ANDROID_HOME") ?? string.Empty, "platform-tools", "adb.exe"),
                 Path.Combine(Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT") ?? string.Empty, "platform-tools", "adb.exe"),
                 @"D:\Android\Sdk\platform-tools\adb.exe",
-                Path.Combine(localAppData, @"Android\Sdk\platform-tools\adb.exe"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Android\platform-tools\adb.exe")
             };
 
@@ -424,9 +423,7 @@ namespace OpenTabletDriver.Devices.Android
             {
                 Log.Write(nameof(AndroidTabletHub), "Android platform-tools (adb) not found. Automatically downloading from Google...", LogLevel.Info);
 
-                string otdDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenTabletDriver");
-                Directory.CreateDirectory(otdDir);
-
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string tempZip = Path.Combine(Path.GetTempPath(), $"platform-tools-{Guid.NewGuid():N}.zip");
                 const string url = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
 
@@ -440,7 +437,7 @@ namespace OpenTabletDriver.Devices.Android
                 }
 
                 // The zip contains a top-level "platform-tools/" folder
-                ZipFile.ExtractToDirectory(tempZip, otdDir, overwriteFiles: true);
+                ZipFile.ExtractToDirectory(tempZip, baseDir, overwriteFiles: true);
 
                 try
                 {

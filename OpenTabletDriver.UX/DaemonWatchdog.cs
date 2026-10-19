@@ -17,18 +17,21 @@ namespace OpenTabletDriver.UX
             PluginPlatform.Windows => new ProcessStartInfo
             {
                 FileName = Path.Join(AppContext.BaseDirectory, "OpenTabletDriver.Daemon.exe"),
-                Arguments = "",
+                Arguments = $"--appdata \"{Path.Join(AppContext.BaseDirectory, "userdata")}\"",
                 WorkingDirectory = AppContext.BaseDirectory,
                 CreateNoWindow = true
             },
             PluginPlatform.MacOS => new ProcessStartInfo
             {
-                FileName = Path.Join(AppContext.BaseDirectory, "OpenTabletDriver.Daemon")
+                FileName = Path.Join(AppContext.BaseDirectory, "OpenTabletDriver.Daemon"),
+                Arguments = $"--appdata \"{Path.Join(AppContext.BaseDirectory, "userdata")}\"",
+                WorkingDirectory = AppContext.BaseDirectory
             },
             _ => new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = Path.Join(AppContext.BaseDirectory, "OpenTabletDriver.Daemon.dll")
+                Arguments = $"\"{Path.Join(AppContext.BaseDirectory, "OpenTabletDriver.Daemon.dll")}\" --appdata \"{Path.Join(AppContext.BaseDirectory, "userdata")}\"",
+                WorkingDirectory = AppContext.BaseDirectory
             }
         };
 
