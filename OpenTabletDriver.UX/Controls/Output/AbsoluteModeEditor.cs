@@ -210,7 +210,14 @@ namespace OpenTabletDriver.UX.Controls.Output
                 return;
             }
 
-            var displayRatio = displayAreaEditor.Area!.Width / displayAreaEditor.Area!.Height;
+            if (displayAreaEditor.Area == null || displayAreaEditor.Area.Height <= 0 ||
+                displayWidth.DataValue <= 0 || displayHeight.DataValue <= 0)
+            {
+                handlingArLock = false;
+                return;
+            }
+
+            var displayRatio = displayAreaEditor.Area.Width / displayAreaEditor.Area.Height;
 
             var tryHeightFirst = sender == tabletWidth || sender == displayHeight || sender == tabletAreaEditor || sender == displayAreaEditor && displayRatio <= 1;
             var tryWidthFirst = sender == tabletHeight || sender == displayWidth || sender == displayAreaEditor && displayRatio > 1;
@@ -287,14 +294,14 @@ namespace OpenTabletDriver.UX.Controls.Output
 
         private static Vector2 GetOutOfBoundsAmount(AreaDisplay display, float X, float Y)
         {
-            if (!display.FullAreaBounds.HasValue)
+            if (!display.FullAreaBounds.HasValue || display.Area == null)
                 return Vector2.Zero;
 
             var bounds = display.FullAreaBounds.Value;
             bounds.X = 0;
             bounds.Y = 0;
 
-            var area = display.Area!;
+            var area = display.Area;
             var rect = RectangleF.FromCenter(PointF.Empty, new SizeF(area.Width, area.Height));
 
             var corners = new PointF[]

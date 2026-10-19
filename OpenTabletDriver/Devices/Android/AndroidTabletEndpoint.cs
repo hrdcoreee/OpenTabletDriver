@@ -105,6 +105,7 @@ namespace OpenTabletDriver.Devices.Android
                 return;
 
             _isDisconnected = true;
+            try { _client.Close(); } catch { }
             _hub.OnEndpointDisconnected(this);
         }
     }

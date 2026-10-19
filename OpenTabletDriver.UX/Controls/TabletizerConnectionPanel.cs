@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Eto.Drawing;
 using Eto.Forms;
 using OpenTabletDriver.Devices.Android;
 using OpenTabletDriver.Plugin.Devices;
+using OpenTabletDriver.Plugin.Tablet;
 
 namespace OpenTabletDriver.UX.Controls
 {
@@ -232,8 +234,14 @@ namespace OpenTabletDriver.UX.Controls
                 Border = BorderType.None
             };
 
-            App.Driver.TabletsChanged += (s, e) => Application.Instance.AsyncInvoke(RefreshStatus);
+            App.Driver.TabletsChanged += OnDriverTabletsChanged;
+            UnLoad += (s, e) => App.Driver.TabletsChanged -= OnDriverTabletsChanged;
             RefreshStatus();
+        }
+
+        private void OnDriverTabletsChanged(object? s, IEnumerable<TabletReference> e)
+        {
+            Application.Instance.AsyncInvoke(RefreshStatus);
         }
 
         public async void RefreshStatus()

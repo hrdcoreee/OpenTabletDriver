@@ -25,6 +25,13 @@ namespace OpenTabletDriver.UX.Controls
 
             control.Pages.Add(new TabPage
             {
+                Text = "Connection",
+                Padding = 5,
+                Content = connectionPanel = new()
+            });
+
+            control.Pages.Add(new TabPage
+            {
                 Text = "Filters",
                 Padding = 5,
                 Content = filterEditor = new()
@@ -59,13 +66,6 @@ namespace OpenTabletDriver.UX.Controls
 
             control.Pages.Add(new TabPage
             {
-                Text = "Connection",
-                Padding = 5,
-                Content = connectionPanel = new()
-            });
-
-            control.Pages.Add(new TabPage
-            {
                 Text = "Info",
                 Padding = 5,
                 Content = placeholder = new Placeholder
@@ -91,14 +91,6 @@ namespace OpenTabletDriver.UX.Controls
             toolEditor.StoreCollectionBinding.Bind(App.Current, a => a.Settings.Tools);
 
             outputModeEditor.SetDisplaySize(DesktopInterop.VirtualScreen?.Displays);
-
-            Log.Output += (_, message) => Application.Instance.AsyncInvoke(() =>
-            {
-                if (message.Level > LogLevel.Info)
-                {
-                    tabControl.SelectedPage = logView.Parent as TabPage;
-                }
-            });
         }
 
         private TabControl tabControl;

@@ -12,7 +12,11 @@ namespace OpenTabletDriver.Desktop.Interop.Input.Keyboard
     {
         private static void KeyEvent(string key, bool isPress)
         {
-            var vk = EtoKeysymToVK[key];
+            if (!EtoKeysymToVK.TryGetValue(key, out var vk))
+            {
+                Log.Write("WindowsKeyboard", $"Unsupported key: '{key}'", LogLevel.Warning);
+                return;
+            }
             var input = new INPUT
             {
                 type = INPUT_TYPE.KEYBD_INPUT,

@@ -436,8 +436,10 @@ namespace OpenTabletDriver.UX
         {
             Debug.Assert(App.Driver.IsConnected);
             // Hook events after the instance is (re)instantiated
+            Log.Output -= LogToDriver;
             Log.Output += LogToDriver;
-            App.Driver.TabletsChanged += (sender, tablet) => SetTitle(tablet);
+            App.Driver.TabletsChanged -= HandleDriverTabletsChanged;
+            App.Driver.TabletsChanged += HandleDriverTabletsChanged;
 
             // Load full menu
             this.Menu = fullMenu;
@@ -457,7 +459,8 @@ namespace OpenTabletDriver.UX
 
             // Synchronize settings
             await SyncSettings();
-            App.Driver.Resynchronize += async (sender, e) => await SyncSettings();
+            App.Driver.Resynchronize -= HandleDriverResynchronize;
+            App.Driver.Resynchronize += HandleDriverResynchronize;
 
             // Set window content
             base.Content = new TabletSwitcherPanel
@@ -486,6 +489,9 @@ namespace OpenTabletDriver.UX
             MatchDaemonVersion();
         });
 
+        private void HandleDriverTabletsChanged(object? sender, IEnumerable<TabletReference> tablet) => SetTitle(tablet);
+        private async void HandleDriverResynchronize(object? sender, EventArgs e) => await SyncSettings();
+
         private Button saveButton;
         private Button applyButton;
 
@@ -498,6 +504,8 @@ namespace OpenTabletDriver.UX
         private void HandleDaemonDisconnected(object? sender, EventArgs e)
         {
             Log.Output -= LogToDriver;
+            App.Driver.TabletsChanged -= HandleDriverTabletsChanged;
+            App.Driver.Resynchronize -= HandleDriverResynchronize;
             if (SilenceDaemonShutdown)
                 return;
 

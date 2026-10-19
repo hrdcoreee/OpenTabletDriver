@@ -89,6 +89,9 @@ namespace OpenTabletDriver.Plugin.Output
 
         protected static Matrix3x2 CalculateTransformation(Area input, Area output, DigitizerSpecifications digitizer)
         {
+            if (digitizer.MaxX <= 0 || digitizer.MaxY <= 0 || input.Width <= 0 || input.Height <= 0)
+                return Matrix3x2.Identity;
+
             // Convert raw tablet data to millimeters
             var res = Matrix3x2.CreateScale(
                 digitizer.Width / digitizer.MaxX,
