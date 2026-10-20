@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Eto.Drawing;
@@ -16,17 +16,10 @@ namespace OpenTabletDriver.UX.Controls
         private readonly CheckBox _preferUsbCheck;
         private readonly CheckBox _autoDiscoveryCheck;
         private readonly Label _discoveredLabel;
-        private readonly Label _guideLabel;
         private readonly TextBox _manualHostBox;
         private readonly TextBox _portBox;
         private readonly Button _saveButton;
         private readonly Button _reconnectButton;
-
-        private static Color SubTextColor => ThemeManager.IsDark ? Color.FromRgb(0xA0A0C0) : Colors.Gray;
-        private static Color GuideTextColor => ThemeManager.IsDark ? Color.FromRgb(0xC0C0D8) : Colors.DimGray;
-        private static Color StatusConnectedColor => ThemeManager.IsDark ? Color.FromRgb(0x50FA7B) : Colors.DarkGreen;
-        private static Color StatusDisconnectedColor => ThemeManager.IsDark ? Color.FromRgb(0xFFB86C) : Colors.DarkOrange;
-        private static Color StatusErrorColor => ThemeManager.IsDark ? Color.FromRgb(0xFF6E6E) : Colors.Red;
 
         public TabletizerConnectionPanel()
         {
@@ -36,7 +29,7 @@ namespace OpenTabletDriver.UX.Controls
             {
                 Text = "Checking connection...",
                 Font = SystemFonts.Bold(13),
-                TextColor = ThemeManager.IsDark ? Color.FromRgb(0x7AB8FF) : Colors.SteelBlue
+                TextColor = Colors.SteelBlue
             };
 
             _enableWifiCheck = new CheckBox
@@ -65,7 +58,7 @@ namespace OpenTabletDriver.UX.Controls
             _discoveredLabel = new Label
             {
                 Text = $"Last discovered Wi-Fi phone IP: {lastDiscovered}",
-                TextColor = SubTextColor,
+                TextColor = Colors.Gray,
                 Enabled = config.EnableWifi
             };
 
@@ -183,19 +176,6 @@ namespace OpenTabletDriver.UX.Controls
                 }
             };
 
-            _guideLabel = new Label
-            {
-                Text = "• USB Mode (Recommended, Lowest Latency):\n" +
-                       "  1. Connect your Android phone to PC with a USB data cable.\n" +
-                       "  2. Enable 'USB Debugging' in Developer Options on your phone.\n" +
-                       "  3. Open tabletizer app — OpenTabletDriver forwards port via ADB automatically.\n\n" +
-                       "• Wi-Fi Mode (Wireless):\n" +
-                       "  1. Connect phone and PC to the same Wi-Fi network.\n" +
-                       "  2. Open tabletizer app — UDP auto-discovery will pair automatically.\n" +
-                       "  (If network isolates multicast, enter phone IP in 'Manual Phone IP' above).",
-                TextColor = GuideTextColor
-            };
-
             var guideBox = new GroupBox
             {
                 Text = "Connection Guide",
@@ -206,7 +186,18 @@ namespace OpenTabletDriver.UX.Controls
                     HorizontalContentAlignment = HorizontalAlignment.Stretch,
                     Items =
                     {
-                        _guideLabel
+                        new Label
+                        {
+                            Text = "• USB Mode (Recommended, Lowest Latency):\n" +
+                                   "  1. Connect your Android phone to PC with a USB data cable.\n" +
+                                   "  2. Enable 'USB Debugging' in Developer Options on your phone.\n" +
+                                   "  3. Open tabletizer app — OpenTabletDriver forwards port via ADB automatically.\n\n" +
+                                   "• Wi-Fi Mode (Wireless):\n" +
+                                   "  1. Connect phone and PC to the same Wi-Fi network.\n" +
+                                   "  2. Open tabletizer app — UDP auto-discovery will pair automatically.\n" +
+                                   "  (If network isolates multicast, enter phone IP in 'Manual Phone IP' above).",
+                            TextColor = Colors.DimGray
+                        }
                     }
                 }
             };
@@ -244,25 +235,8 @@ namespace OpenTabletDriver.UX.Controls
             };
 
             App.Driver.TabletsChanged += OnDriverTabletsChanged;
-            ThemeManager.ThemeChanged += HandleThemeChanged;
-
-            UnLoad += (s, e) =>
-            {
-                App.Driver.TabletsChanged -= OnDriverTabletsChanged;
-                ThemeManager.ThemeChanged -= HandleThemeChanged;
-            };
-
+            UnLoad += (s, e) => App.Driver.TabletsChanged -= OnDriverTabletsChanged;
             RefreshStatus();
-        }
-
-        private void HandleThemeChanged()
-        {
-            Application.Instance.AsyncInvoke(() =>
-            {
-                _discoveredLabel.TextColor = SubTextColor;
-                _guideLabel.TextColor = GuideTextColor;
-                RefreshStatus();
-            });
         }
 
         private void OnDriverTabletsChanged(object? s, IEnumerable<TabletReference> e)
@@ -275,7 +249,7 @@ namespace OpenTabletDriver.UX.Controls
             if (!App.Driver.IsConnected)
             {
                 _statusLabel.Text = "Daemon disconnected";
-                _statusLabel.TextColor = StatusErrorColor;
+                _statusLabel.TextColor = Colors.Red;
                 return;
             }
 
@@ -291,23 +265,23 @@ namespace OpenTabletDriver.UX.Controls
                     if (uri.Host == "127.0.0.1" || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
                     {
                         _statusLabel.Text = "Connected via USB (ADB tunnel, ~0ms latency)";
-                        _statusLabel.TextColor = StatusConnectedColor;
+                        _statusLabel.TextColor = Colors.DarkGreen;
                     }
                     else
                     {
                         _statusLabel.Text = $"Connected via Wi-Fi ({uri.Host}:{uri.Port})";
-                        _statusLabel.TextColor = StatusConnectedColor;
+                        _statusLabel.TextColor = Colors.DarkGreen;
                     }
                     return;
                 }
 
                 _statusLabel.Text = "Disconnected — Searching for tabletizer on USB & Wi-Fi...";
-                _statusLabel.TextColor = StatusDisconnectedColor;
+                _statusLabel.TextColor = Colors.DarkOrange;
             }
             catch
             {
                 _statusLabel.Text = "Waiting for connection status...";
-                _statusLabel.TextColor = SubTextColor;
+                _statusLabel.TextColor = Colors.Gray;
             }
         }
     }

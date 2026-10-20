@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.CommandLine;
 using System.ComponentModel;
 using System.IO;
@@ -65,10 +65,6 @@ namespace OpenTabletDriver.UX
         {
             var app = new Application(platform);
             ShowPenSettings = options.ShowPenSettings;
-
-            // Apply saved theme before the main window appears
-            ThemeManager.Initialize();
-
             var mainForm = new MainForm();
             if (options.StartMinimized)
             {

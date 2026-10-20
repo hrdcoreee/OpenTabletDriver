@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -17,7 +17,6 @@ using OpenTabletDriver.Interop;
 using OpenTabletDriver.Plugin;
 using OpenTabletDriver.Plugin.Logging;
 using OpenTabletDriver.Plugin.Tablet;
-using OpenTabletDriver.Devices.Android;
 using OpenTabletDriver.UX.Controls;
 
 namespace OpenTabletDriver.UX
@@ -37,8 +36,6 @@ namespace OpenTabletDriver.UX
             fullMenu = ConstructMenu();
 
             base.Content = placeholder;
-            ApplyTheme();
-            ThemeManager.ThemeChanged += HandleThemeChanged;
 
             trayIcon?.Indicator.Show();
 
@@ -346,17 +343,6 @@ namespace OpenTabletDriver.UX
                         {
                             detectTablet,
                             showTabletDebugger,
-                            new SeparatorMenuItem(),
-                            new ButtonMenuItem
-                            {
-                                Text = "Theme",
-                                Items =
-                                {
-                                    CreateThemeMenuItem("System (default)", AppTheme.System),
-                                    CreateThemeMenuItem("Light",            AppTheme.Light),
-                                    CreateThemeMenuItem("Dark",             AppTheme.Dark),
-                                }
-                            }
                         }
                     },
                     // Plugins submenu
@@ -399,49 +385,6 @@ namespace OpenTabletDriver.UX
             }
 
             return menuBar;
-        }
-
-        /// <summary>
-        /// Creates a radio-style menu item that switches to the given <see cref="AppTheme"/>.
-        /// The item shows a checkmark when its theme is the currently saved preference.
-        /// </summary>
-        private ButtonMenuItem CreateThemeMenuItem(string text, AppTheme theme)
-        {
-            // Use a checkmark in the text if this is the currently selected preference
-            bool isCurrent = TabletizerConfig.Instance.Theme == theme;
-            var item = new ButtonMenuItem
-            {
-                Text = isCurrent ? "\u2713 " + text : "   " + text
-            };
-            item.Click += (_, _) =>
-            {
-                ThemeManager.Apply(theme);
-
-                // Rebuild the menu to refresh checkmarks
-                // The simplest way is to refresh the Tablet submenu items in-place
-                RefreshThemeMenuCheckmarks();
-            };
-            return item;
-        }
-
-        private void RefreshThemeMenuCheckmarks()
-        {
-            var tabletMenu = fullMenu.Items.GetSubmenu("Tablet") as ButtonMenuItem;
-            if (tabletMenu == null) return;
-
-            var themeMenu = tabletMenu.Items.OfType<ButtonMenuItem>()
-                .FirstOrDefault(i => i.Text == "Theme");
-            if (themeMenu == null) return;
-
-            var saved = TabletizerConfig.Instance.Theme;
-            string[] labels = ["System (default)", "Light", "Dark"];
-            AppTheme[] themes = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
-
-            for (int i = 0; i < themeMenu.Items.Count && i < labels.Length; i++)
-            {
-                if (themeMenu.Items[i] is ButtonMenuItem mi)
-                    mi.Text = (themes[i] == saved ? "\u2713 " : "   ") + labels[i];
-            }
         }
 
         private async void SetTitle(IEnumerable<TabletReference>? tablets = null)
@@ -907,25 +850,8 @@ namespace OpenTabletDriver.UX
             });
         }
 
-        private void ApplyTheme()
-        {
-            this.BackgroundColor = ThemeManager.IsDark
-                ? Color.FromRgb(0x1E1E2E)
-                : Color.FromRgb(0xF5F5F5);
-        }
-
-        private void HandleThemeChanged()
-        {
-            Application.Instance.AsyncInvoke(() =>
-            {
-                ApplyTheme();
-                RefreshThemeMenuCheckmarks();
-            });
-        }
-
         protected override void OnClosing(CancelEventArgs e)
         {
-            ThemeManager.ThemeChanged -= HandleThemeChanged;
             App.Driver.Disconnected -= HandleDaemonDisconnected;
             base.OnClosing(e);
         }
