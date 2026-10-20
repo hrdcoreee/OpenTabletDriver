@@ -37,6 +37,8 @@ namespace OpenTabletDriver.UX
             fullMenu = ConstructMenu();
 
             base.Content = placeholder;
+            ApplyTheme();
+            ThemeManager.ThemeChanged += HandleThemeChanged;
 
             trayIcon?.Indicator.Show();
 
@@ -905,8 +907,25 @@ namespace OpenTabletDriver.UX
             });
         }
 
+        private void ApplyTheme()
+        {
+            this.BackgroundColor = ThemeManager.IsDark
+                ? Color.FromRgb(0x1E1E2E)
+                : Color.FromRgb(0xF5F5F5);
+        }
+
+        private void HandleThemeChanged()
+        {
+            Application.Instance.AsyncInvoke(() =>
+            {
+                ApplyTheme();
+                RefreshThemeMenuCheckmarks();
+            });
+        }
+
         protected override void OnClosing(CancelEventArgs e)
         {
+            ThemeManager.ThemeChanged -= HandleThemeChanged;
             App.Driver.Disconnected -= HandleDaemonDisconnected;
             base.OnClosing(e);
         }

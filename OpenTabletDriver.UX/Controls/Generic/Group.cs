@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Eto.Drawing;
 using Eto.Forms;
 using OpenTabletDriver.Interop;
@@ -25,8 +25,8 @@ namespace OpenTabletDriver.UX.Controls.Generic
 
         protected virtual Padding ContentPadding => SystemInterop.CurrentPlatform == PluginPlatform.Windows ? new Padding(5, 10, 5, 5) : new Padding(5);
 
-        protected virtual Color HorizontalBackgroundColor => SystemColors.ControlBackground;
-        protected virtual Color VerticalBackgroundColor => SystemColors.WindowBackground;
+        protected virtual Color HorizontalBackgroundColor => ThemeManager.IsDark ? Color.FromRgb(0x252538) : SystemColors.ControlBackground;
+        protected virtual Color VerticalBackgroundColor => ThemeManager.IsDark ? Color.FromRgb(0x1E1E2E) : SystemColors.WindowBackground;
 
         public string? Text
         {
