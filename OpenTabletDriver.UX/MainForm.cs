@@ -453,10 +453,6 @@ namespace OpenTabletDriver.UX
             // Load any new plugins
             AppInfo.PluginManager.Load();
 
-            // Show the startup greeter
-            if (!File.Exists(AppInfo.Current.SettingsFile) && this.WindowState != WindowState.Minimized)
-                App.Current.StartupGreeterWindow.Show();
-
             // Synchronize settings
             await SyncSettings();
             App.Driver.Resynchronize -= HandleDriverResynchronize;

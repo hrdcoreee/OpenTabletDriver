@@ -12,7 +12,7 @@
 nupkg/
 [Bb]uild/
 /dist/
-
+build_win.sh
 # BenchmarkDotNet Artifacts
 BenchmarkDotNet.Artifacts/
 
