@@ -13,6 +13,7 @@ nupkg/
 [Bb]uild/
 /dist/
 build_win.sh
+build-local.ps1
 # BenchmarkDotNet Artifacts
 BenchmarkDotNet.Artifacts/
 
