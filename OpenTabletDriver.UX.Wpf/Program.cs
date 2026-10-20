@@ -1,6 +1,7 @@
 using System;
 using System.Security.Principal;
 using Eto.Forms;
+using OpenTabletDriver.UX;
 
 namespace OpenTabletDriver.UX.Wpf
 {
@@ -20,6 +21,16 @@ namespace OpenTabletDriver.UX.Wpf
                     "If it isn't resolved after, you are using the Administrator named account which overrides UAC.", MessageBoxType.Warning);
                 Eto.Platform.AllowReinitialize = true;
             }
+
+            // Subscribe to theme changes — apply WPF resources on UI thread
+            ThemeManager.ThemeChanged += () =>
+            {
+                var wpfApp = System.Windows.Application.Current;
+                if (wpfApp?.Dispatcher != null && !wpfApp.Dispatcher.CheckAccess())
+                    wpfApp.Dispatcher.Invoke(WpfThemeApplier.Apply);
+                else
+                    WpfThemeApplier.Apply();
+            };
 
             App.Run(Eto.Platforms.Wpf, args);
         }

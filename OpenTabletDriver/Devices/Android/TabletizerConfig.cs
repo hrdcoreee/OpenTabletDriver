@@ -4,6 +4,14 @@ using Newtonsoft.Json;
 
 namespace OpenTabletDriver.Devices.Android
 {
+    /// <summary>Color theme preference stored in tabletizer.json.</summary>
+    public enum AppTheme
+    {
+        System,
+        Light,
+        Dark
+    }
+
     public class TabletizerConfig
     {
         private static string ConfigPath
@@ -75,6 +83,7 @@ namespace OpenTabletDriver.Devices.Android
         public string? ManualWifiHost { get; set; } = string.Empty;
         public string? LastDiscoveredWifiHost { get; set; } = string.Empty;
         public int Port { get; set; } = 3240;
+        public AppTheme Theme { get; set; } = AppTheme.System;
 
         public static TabletizerConfig Load()
         {
