@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Security.Principal;
 using System.Windows;
 using System.Windows.Interop;
@@ -32,11 +32,28 @@ namespace OpenTabletDriver.UX.Wpf
                 {
                     if (s is System.Windows.Window w)
                     {
-                        var helper = new WindowInteropHelper(w);
-                        WpfThemeApplier.SetWindowDarkMode(helper.Handle, ThemeManager.IsDark);
-                        w.Background = WpfThemeApplier.CurrentWindowBackgroundBrush;
-                        w.Foreground = WpfThemeApplier.CurrentTextBrush;
+                        WpfThemeApplier.ApplyToWindow(w, ThemeManager.IsDark);
                     }
+                }));
+
+            // Hook menu popup opened globally so submenus get dark background and light text
+            EventManager.RegisterClassHandler(
+                typeof(System.Windows.Controls.MenuItem),
+                System.Windows.Controls.MenuItem.SubmenuOpenedEvent,
+                new RoutedEventHandler((s, e) =>
+                {
+                    if (s is System.Windows.Controls.MenuItem mi)
+                        WpfThemeApplier.StyleMenuItemPopup(mi, ThemeManager.IsDark);
+                }));
+
+            // Hook context menu opened globally
+            EventManager.RegisterClassHandler(
+                typeof(System.Windows.Controls.ContextMenu),
+                System.Windows.Controls.ContextMenu.OpenedEvent,
+                new RoutedEventHandler((s, e) =>
+                {
+                    if (s is System.Windows.Controls.ContextMenu ctx)
+                        WpfThemeApplier.StyleContextMenu(ctx, ThemeManager.IsDark);
                 }));
 
             // Subscribe to theme changes — apply WPF resources on UI thread
