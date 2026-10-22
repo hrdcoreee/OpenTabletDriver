@@ -111,49 +111,63 @@ namespace OpenTabletDriver.Devices.Android
             }
         }
 
+        private DateTime _lastUsbCheckTime = DateTime.MinValue;
+
         private void StartBeaconListener()
         {
             Task.Run(async () =>
             {
-                UdpClient? udpClient = null;
-                try
+                while (!_cts.Token.IsCancellationRequested)
                 {
-                    udpClient = new UdpClient();
-                    udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                    udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, BEACON_PORT));
-
-                    while (!_cts.Token.IsCancellationRequested)
+                    UdpClient? udpClient = null;
+                    try
                     {
-                        var result = await udpClient.ReceiveAsync(_cts.Token);
-                        string message = System.Text.Encoding.UTF8.GetString(result.Buffer);
-                        if (message.StartsWith("TABLETIZER_BEACON"))
-                        {
-                            var ip = result.RemoteEndPoint.Address;
-                            if (ip.IsIPv4MappedToIPv6)
-                                ip = ip.MapToIPv4();
-                            string ipStr = ip.ToString();
+                        udpClient = new UdpClient();
+                        udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                        udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, BEACON_PORT));
 
-                            if (_lastDiscoveredBeaconIp != ipStr)
+                        while (!_cts.Token.IsCancellationRequested)
+                        {
+                            var result = await udpClient.ReceiveAsync(_cts.Token);
+                            string message = System.Text.Encoding.UTF8.GetString(result.Buffer);
+                            if (message.StartsWith("TABLETIZER_BEACON"))
                             {
-                                _lastDiscoveredBeaconIp = ipStr;
-                                Log.Write(nameof(AndroidTabletHub), $"Discovered tabletizer via Wi-Fi beacon at {ipStr}:{DEFAULT_PORT}", LogLevel.Info);
-                                TabletizerConfig.Instance.LastDiscoveredWifiHost = ipStr;
-                                TabletizerConfig.Instance.Save();
-                                SignalReconnect();
+                                var ip = result.RemoteEndPoint.Address;
+                                if (ip.IsIPv4MappedToIPv6)
+                                    ip = ip.MapToIPv4();
+                                string ipStr = ip.ToString();
+
+                                if (_lastDiscoveredBeaconIp != ipStr)
+                                {
+                                    _lastDiscoveredBeaconIp = ipStr;
+                                    Log.Write(nameof(AndroidTabletHub), $"Discovered tabletizer via Wi-Fi beacon at {ipStr}:{DEFAULT_PORT}", LogLevel.Info);
+                                    TabletizerConfig.Instance.LastDiscoveredWifiHost = ipStr;
+                                    TabletizerConfig.Instance.Save();
+                                    SignalReconnect();
+                                }
                             }
                         }
                     }
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch (Exception ex)
-                {
-                    Log.Write(nameof(AndroidTabletHub), $"Beacon listener ended: {ex.Message}", LogLevel.Debug);
-                }
-                finally
-                {
-                    udpClient?.Dispose();
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Write(nameof(AndroidTabletHub), $"Beacon listener transient error: {ex.Message}. Retrying in 5s...", LogLevel.Debug);
+                        try
+                        {
+                            await Task.Delay(5000, _cts.Token);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                    }
+                    finally
+                    {
+                        udpClient?.Dispose();
+                    }
                 }
             }, _cts.Token);
         }
@@ -173,9 +187,10 @@ namespace OpenTabletDriver.Devices.Android
                 if (int.TryParse(Environment.GetEnvironmentVariable("TABLETIZER_PORT"), out int pEnv))
                     port = pEnv;
 
-                // If currently connected over Wi-Fi, but PreferUsb is enabled, check if USB ADB became available
-                if (isConnected && config.PreferUsb)
+                // If currently connected over Wi-Fi, but PreferUsb is enabled, check if USB ADB became available (throttled to 10s)
+                if (isConnected && config.PreferUsb && (DateTime.UtcNow - _lastUsbCheckTime).TotalSeconds >= 10)
                 {
+                    _lastUsbCheckTime = DateTime.UtcNow;
                     bool isWifiConnected = false;
                     lock (_sync)
                     {
@@ -256,9 +271,10 @@ namespace OpenTabletDriver.Devices.Android
 
                     foreach (var (host, candPort, mode) in candidates)
                     {
+                        TcpClient? client = null;
                         try
                         {
-                            var client = new TcpClient { NoDelay = true, ReceiveBufferSize = 8192 };
+                            client = new TcpClient { NoDelay = true, ReceiveBufferSize = 8192 };
                             using var connectCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(700));
                             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, connectCts.Token);
 
@@ -277,12 +293,17 @@ namespace OpenTabletDriver.Devices.Android
 
                                 _lastDiagnosticMessage = null;
                                 Log.Write(nameof(AndroidTabletHub), $"Successfully connected to tabletizer at {host}:{candPort} via {mode}!", LogLevel.Info);
+                                client = null; // Ownership transferred to AndroidTabletEndpoint
                                 break;
                             }
                         }
                         catch
                         {
                             // Try next candidate
+                        }
+                        finally
+                        {
+                            client?.Dispose();
                         }
                     }
 
@@ -325,8 +346,14 @@ namespace OpenTabletDriver.Devices.Android
                 };
 
                 process.Start();
-                string error = process.StandardError.ReadToEnd().Trim();
-                process.WaitForExit(1000);
+                var stderrTask = process.StandardError.ReadToEndAsync();
+                if (!process.WaitForExit(1500))
+                {
+                    try { process.Kill(); } catch { }
+                    return (false, "ADB: Process timed out.");
+                }
+
+                string error = (stderrTask.Wait(300) ? stderrTask.Result : string.Empty).Trim();
 
                 if (process.ExitCode == 0)
                 {
@@ -361,29 +388,35 @@ namespace OpenTabletDriver.Devices.Android
             }
         }
 
+        private static string? _cachedAdbPath;
+
         private static string? FindAdbPath()
         {
+            if (!string.IsNullOrEmpty(_cachedAdbPath) && File.Exists(_cachedAdbPath))
+                return _cachedAdbPath;
+
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string userdataDir = Path.Combine(baseDir, "userdata");
 
             var candidates = new List<string?>
             {
                 Path.Combine(baseDir, "platform-tools", "adb.exe"),
                 Path.Combine(baseDir, "adb.exe"),
-                Path.Combine(localAppData, "OpenTabletDriver", "platform-tools", "adb.exe"),
-                Path.Combine(localAppData, "OpenTabletDriver", "platform-tools", "platform-tools", "adb.exe"),
-                Path.Combine(localAppData, "OpenTabletDriver", "adb.exe"),
+                Path.Combine(userdataDir, "platform-tools", "adb.exe"),
+                Path.Combine(userdataDir, "platform-tools", "platform-tools", "adb.exe"),
+                Path.Combine(userdataDir, "adb.exe"),
                 Path.Combine(Environment.GetEnvironmentVariable("ANDROID_HOME") ?? string.Empty, "platform-tools", "adb.exe"),
                 Path.Combine(Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT") ?? string.Empty, "platform-tools", "adb.exe"),
-                @"D:\Android\Sdk\platform-tools\adb.exe",
-                Path.Combine(localAppData, @"Android\Sdk\platform-tools\adb.exe"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Android\platform-tools\adb.exe")
             };
 
             foreach (var path in candidates)
             {
                 if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                {
+                    _cachedAdbPath = path;
                     return path;
+                }
             }
 
             var pathEnv = Environment.GetEnvironmentVariable("PATH");
@@ -395,7 +428,10 @@ namespace OpenTabletDriver.Devices.Android
                     {
                         var full = Path.Combine(dir.Trim(), "adb.exe");
                         if (File.Exists(full))
+                        {
+                            _cachedAdbPath = full;
                             return full;
+                        }
                     }
                     catch { }
                 }
@@ -424,9 +460,7 @@ namespace OpenTabletDriver.Devices.Android
             {
                 Log.Write(nameof(AndroidTabletHub), "Android platform-tools (adb) not found. Automatically downloading from Google...", LogLevel.Info);
 
-                string otdDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenTabletDriver");
-                Directory.CreateDirectory(otdDir);
-
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string tempZip = Path.Combine(Path.GetTempPath(), $"platform-tools-{Guid.NewGuid():N}.zip");
                 const string url = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
 
@@ -440,7 +474,7 @@ namespace OpenTabletDriver.Devices.Android
                 }
 
                 // The zip contains a top-level "platform-tools/" folder
-                ZipFile.ExtractToDirectory(tempZip, otdDir, overwriteFiles: true);
+                ZipFile.ExtractToDirectory(tempZip, baseDir, overwriteFiles: true);
 
                 try
                 {

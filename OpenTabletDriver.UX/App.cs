@@ -3,6 +3,7 @@ using System.CommandLine;
 using System.ComponentModel;
 using System.IO;
 using System.IO.Pipes;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,6 +25,7 @@ namespace OpenTabletDriver.UX
     {
         public bool StartMinimized { get; set; }
         public bool SkipUpdate { get; set; }
+        public bool ShowPenSettings { get; set; }
     }
 
     public sealed class App : ViewModel
@@ -46,8 +48,15 @@ namespace OpenTabletDriver.UX
                 }
                 else
                 {
-                    using var client = new NamedPipeClientStream(".", APPNAME + ".Singleton", PipeDirection.InOut);
-                    client.Connect();
+                    try
+                    {
+                        using var client = new NamedPipeClientStream(".", APPNAME + ".Singleton", PipeDirection.InOut);
+                        client.Connect(1500);
+                    }
+                    catch
+                    {
+                        // Ignore connection timeout/failures to stale instances
+                    }
                 }
             }
         }
@@ -55,6 +64,7 @@ namespace OpenTabletDriver.UX
         private static void RunInternal(string platform, CommandLineOptions options)
         {
             var app = new Application(platform);
+            ShowPenSettings = options.ShowPenSettings;
             var mainForm = new MainForm();
             if (options.StartMinimized)
             {
@@ -117,10 +127,16 @@ namespace OpenTabletDriver.UX
                 Description = "Skip checking for updates"
             };
 
+            var penSettingsOption = new Option<bool>("--pensettings", "-pensettings")
+            {
+                Description = "Show Pen Settings tab in the control panel"
+            };
+
             var root = new RootCommand("OpenTabletDriver UX")
             {
                 minimizedOption,
-                skipUpdate
+                skipUpdate,
+                penSettingsOption
             };
 
             var results = root.Parse(args);
@@ -133,9 +149,14 @@ namespace OpenTabletDriver.UX
 
             commandLineOptions.StartMinimized = results.GetValue(minimizedOption);
             commandLineOptions.SkipUpdate = results.GetValue(skipUpdate);
+            commandLineOptions.ShowPenSettings = results.GetValue(penSettingsOption)
+                || args.Any(a => a.Equals("-pensettings", StringComparison.OrdinalIgnoreCase)
+                              || a.Equals("--pensettings", StringComparison.OrdinalIgnoreCase));
 
             return commandLineOptions;
         }
+
+        public static bool ShowPenSettings { get; set; }
 
         public static App Current { get; } = new App();
 
@@ -144,7 +165,8 @@ namespace OpenTabletDriver.UX
         public static readonly Version AssemblyVersion = Assembly.GetExecutingAssembly().GetName().Version!;
 
         public static DaemonRpcClient Driver { get; } = new DaemonRpcClient("OpenTabletDriver.Daemon");
-        public static Bitmap Logo { get; } = new Bitmap(Assembly.GetExecutingAssembly().GetManifestResourceStream("OpenTabletDriver.UX.Assets.otd.png")!);
+        private static Bitmap? logo;
+        public static Bitmap Logo => logo ??= new Bitmap(Assembly.GetExecutingAssembly().GetManifestResourceStream("OpenTabletDriver.UX.Assets.otd.png")!);
 
         public static Uri Website { get; } = new Uri(@"https://github.com/OpenTabletDriver/OpenTabletDriver");
         public static string License { get; } = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream("OpenTabletDriver.UX.LICENSE")!).ReadToEnd();

@@ -81,9 +81,9 @@ namespace OpenTabletDriver.Plugin.Output
                 (float)(-Rotation * System.Math.PI / 180));
 
             var digitizer = Tablet?.Properties.Specifications.Digitizer;
-            return transform *= Matrix3x2.CreateScale(
-                sensitivity.X * ((digitizer?.Width / digitizer?.MaxX) ?? 0.01f),
-                sensitivity.Y * ((digitizer?.Height / digitizer?.MaxY) ?? 0.01f));
+            float scaleX = (digitizer != null && digitizer.MaxX > 0) ? (digitizer.Width / digitizer.MaxX) : 0.01f;
+            float scaleY = (digitizer != null && digitizer.MaxY > 0) ? (digitizer.Height / digitizer.MaxY) : 0.01f;
+            return transform * Matrix3x2.CreateScale(sensitivity.X * scaleX, sensitivity.Y * scaleY);
         }
 
         public override void Read(IDeviceReport deviceReport)

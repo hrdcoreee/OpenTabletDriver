@@ -109,7 +109,7 @@ namespace OpenTabletDriver.UX
         private readonly MenuBar fullMenu;
         private readonly Placeholder placeholder = new()
         {
-            Text = "Connecting to OpenTabletDriver Daemon...",
+            Text = "Connecting to tabletizer daemon...",
         };
 
         private TrayIcon? trayIcon;
@@ -284,15 +284,6 @@ namespace OpenTabletDriver.UX
             var showTabletDebugger = new Command { MenuText = "Tablet debugger..." };
             showTabletDebugger.Executed += (sender, e) => App.Current.DebuggerWindow.Show();
 
-            var tabletizerSettings = new Command { MenuText = "tabletizer Settings..." };
-            tabletizerSettings.Executed += (sender, e) => new Windows.Tablet.TabletizerConfigDialog().ShowModal(this);
-
-            var deviceStringReader = new Command { MenuText = "Device string reader..." };
-            deviceStringReader.Executed += (sender, e) => App.Current.StringReaderWindow.Show();
-
-            var deviceInitSender = new Command { MenuText = "Device init sender..." };
-            deviceInitSender.Executed += (sender, e) => App.Current.InitSenderWindow.Show();
-
             var pluginManager = new Command { MenuText = "Open Plugin Manager..." };
             pluginManager.Executed += (sender, e) => App.Current.PluginManagerWindow.Show();
 
@@ -344,17 +335,14 @@ namespace OpenTabletDriver.UX
                             }
                         }
                     },
-                    // Tablets submenu
+                    // Tablet submenu
                     new ButtonMenuItem
                     {
-                        Text = "Tablets",
+                        Text = "Tablet",
                         Items =
                         {
                             detectTablet,
                             showTabletDebugger,
-                            tabletizerSettings,
-                            deviceStringReader,
-                            deviceInitSender,
                         }
                     },
                     // Plugins submenu
@@ -401,10 +389,10 @@ namespace OpenTabletDriver.UX
 
         private async void SetTitle(IEnumerable<TabletReference>? tablets = null)
         {
-            string prefix = $"OpenTabletDriver v{App.Version}";
+            const string prefix = "tabletizer";
             if (tablets == null || !tablets.Any())
             {
-                this.Title = prefix;
+                this.Title = $"{prefix} - Waiting for connection...";
                 return;
             }
 
@@ -412,11 +400,10 @@ namespace OpenTabletDriver.UX
             var tabletList = tablets.Take(numTablets).ToList();
 
             // Set basic title immediately
-            string initialAffix = string.Join(", ", tabletList.Select(t => t.Properties.Name));
-            this.Title = $"{prefix} - {initialAffix}";
+            this.Title = $"{prefix} - Connected";
 
             // If tabletizer is connected, fetch connection mode (USB vs Wi-Fi) and IP
-            if (tabletList.Any(t => t.Properties.Name.Contains("tabletizer", StringComparison.OrdinalIgnoreCase)) && App.Driver.IsConnected)
+            if (App.Driver.IsConnected)
             {
                 try
                 {
@@ -431,17 +418,9 @@ namespace OpenTabletDriver.UX
                             ? "USB"
                             : $"Wi-Fi: {uri.Host}";
 
-                        var names = tabletList.Select(t =>
-                        {
-                            if (t.Properties.Name.Contains("tabletizer", StringComparison.OrdinalIgnoreCase))
-                                return $"{t.Properties.Name} ({connInfo})";
-                            return t.Properties.Name;
-                        });
-
-                        string detailedAffix = string.Join(", ", names);
                         Application.Instance.AsyncInvoke(() =>
                         {
-                            this.Title = $"{prefix} - {detailedAffix}";
+                            this.Title = $"{prefix} - {connInfo}";
                         });
                     }
                 }
@@ -457,8 +436,10 @@ namespace OpenTabletDriver.UX
         {
             Debug.Assert(App.Driver.IsConnected);
             // Hook events after the instance is (re)instantiated
+            Log.Output -= LogToDriver;
             Log.Output += LogToDriver;
-            App.Driver.TabletsChanged += (sender, tablet) => SetTitle(tablet);
+            App.Driver.TabletsChanged -= HandleDriverTabletsChanged;
+            App.Driver.TabletsChanged += HandleDriverTabletsChanged;
 
             // Load full menu
             this.Menu = fullMenu;
@@ -472,13 +453,10 @@ namespace OpenTabletDriver.UX
             // Load any new plugins
             AppInfo.PluginManager.Load();
 
-            // Show the startup greeter
-            if (!File.Exists(AppInfo.Current.SettingsFile) && this.WindowState != WindowState.Minimized)
-                App.Current.StartupGreeterWindow.Show();
-
             // Synchronize settings
             await SyncSettings();
-            App.Driver.Resynchronize += async (sender, e) => await SyncSettings();
+            App.Driver.Resynchronize -= HandleDriverResynchronize;
+            App.Driver.Resynchronize += HandleDriverResynchronize;
 
             // Set window content
             base.Content = new TabletSwitcherPanel
@@ -507,6 +485,9 @@ namespace OpenTabletDriver.UX
             MatchDaemonVersion();
         });
 
+        private void HandleDriverTabletsChanged(object? sender, IEnumerable<TabletReference> tablet) => SetTitle(tablet);
+        private async void HandleDriverResynchronize(object? sender, EventArgs e) => await SyncSettings();
+
         private Button saveButton;
         private Button applyButton;
 
@@ -519,6 +500,8 @@ namespace OpenTabletDriver.UX
         private void HandleDaemonDisconnected(object? sender, EventArgs e)
         {
             Log.Output -= LogToDriver;
+            App.Driver.TabletsChanged -= HandleDriverTabletsChanged;
+            App.Driver.Resynchronize -= HandleDriverResynchronize;
             if (SilenceDaemonShutdown)
                 return;
 

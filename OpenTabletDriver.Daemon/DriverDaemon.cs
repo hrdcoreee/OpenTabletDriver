@@ -61,36 +61,6 @@ namespace OpenTabletDriver.Daemon
                 }
             };
 
-            foreach (var driverInfo in DriverInfo.GetDriverInfos())
-            {
-                var os = SystemInterop.CurrentPlatform switch
-                {
-                    PluginPlatform.Windows => "Windows",
-                    PluginPlatform.Linux => "Linux",
-                    PluginPlatform.MacOS => "MacOS",
-                    _ => null
-                };
-                var wikiUrl = $"https://opentabletdriver.net/Wiki/FAQ/{os}";
-
-                var message = new StringBuilder();
-                message.Append($"'{driverInfo.Name}' driver is detected.");
-
-                if (driverInfo.Status.HasFlag(DriverStatus.Blocking))
-                    message.Append(" It will block detection of tablets.");
-                if (driverInfo.Status.HasFlag(DriverStatus.Flaky))
-                    message.Append(" It will cause flaky support to tablets.");
-                if (driverInfo.Status.HasFlag(DriverStatus.Uncertain))
-                    message.Append(" It may be a false positive.");
-
-                var processStrings = safeGetProcessDetails(driverInfo.Processes);
-                message.Append($" Processes found: [" + string.Join(", ", processStrings) + "].");
-
-                if (os != null)
-                    message.Append($" If any problems arise, visit '{wikiUrl}'.");
-
-                Log.WriteNotify("Detect", message.ToString(), LogLevel.Warning);
-            }
-
             LoadUserSettings().Wait();
 
             SleepDetector.Slept += async () =>
@@ -146,31 +116,6 @@ namespace OpenTabletDriver.Daemon
             };
         }
 
-        private static IEnumerable<string> safeGetProcessDetails(Process[] processes)
-        {
-            foreach (var driverProcess in processes)
-            {
-                var details = "";
-                try
-                {
-                    details += driverProcess.ProcessName;
-                }
-                catch
-                {
-                    details += "Failed to get ProcessName";
-                }
-
-                try
-                {
-                    details += ": " + driverProcess.MainModule?.FileName;
-                }
-                catch
-                {
-                    details += ": Failed to get FileName";
-                }
-                yield return details;
-            }
-        }
 
         public event EventHandler<LogMessage>? Message;
         public event EventHandler<DebugReportData>? DeviceReport;
@@ -247,8 +192,16 @@ namespace OpenTabletDriver.Daemon
             return await GetTablets();
         }
 
+        private int _settingsFailureDepth;
+
         public Task SetSettings(Settings? settings)
         {
+            if (_settingsFailureDepth > 2)
+            {
+                Log.Write("Settings", "Aborting recursive SetSettings to prevent stack overflow.", LogLevel.Error);
+                return Task.CompletedTask;
+            }
+
             try
             {
                 foreach (var dev in Driver.InputDevices)
@@ -317,17 +270,36 @@ namespace OpenTabletDriver.Daemon
                 lastValidSettings = settings;
                 return Task.CompletedTask;
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Write("Settings", $"Error applying settings: {ex.Message}", LogLevel.Error);
+
+                _settingsFailureDepth++;
                 try
                 {
-                    SetSettings(lastValidSettings);
-                    Log.Write("Settings", "Failed to apply settings. Reverted to last valid settings.", LogLevel.Error, true);
+                    if (lastValidSettings != null && _settingsFailureDepth == 1)
+                    {
+                        try
+                        {
+                            SetSettings(lastValidSettings);
+                            Log.Write("Settings", "Failed to apply settings. Reverted to last valid settings.", LogLevel.Error, true);
+                            return Task.CompletedTask;
+                        }
+                        catch (Exception revertEx)
+                        {
+                            Log.Write("Settings", $"Failed to revert to last valid settings: {revertEx.Message}", LogLevel.Warning);
+                        }
+                    }
+
+                    if (_settingsFailureDepth <= 2)
+                    {
+                        RecoverSettings(settings);
+                        Log.Write("Settings", "Failed to apply settings. Attempted recovery. Some settings may have been lost.", LogLevel.Error, true);
+                    }
                 }
-                catch
+                finally
                 {
-                    RecoverSettings(settings);
-                    Log.Write("Settings", "Failed to apply settings. Attempted recovery. Some settings may have been lost.", LogLevel.Error, true);
+                    _settingsFailureDepth--;
                 }
 
                 Resynchronize?.Invoke(this, EventArgs.Empty);

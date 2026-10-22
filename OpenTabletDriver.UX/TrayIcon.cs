@@ -15,7 +15,7 @@ namespace OpenTabletDriver.UX
 
             Indicator = new TrayIndicator
             {
-                Title = "OpenTabletDriver",
+                Title = "tabletizer",
                 Image = App.Logo
             };
 

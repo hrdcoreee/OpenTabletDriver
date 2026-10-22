@@ -6,6 +6,14 @@ namespace OpenTabletDriver.Configurations.Parsers.FlooGoo
 {
     public struct FmaTabletReport : ITabletReport, ITiltReport, IEraserReport
     {
+        private static readonly bool[][] StaticPenButtons =
+        [
+            [false, false],
+            [true, false],
+            [false, true],
+            [true, true]
+        ];
+
         public FmaTabletReport(byte[] report)
         {
             Raw = report;
@@ -26,11 +34,8 @@ namespace OpenTabletDriver.Configurations.Parsers.FlooGoo
 
             var penByte = report[1];
 
-            PenButtons =
-            [
-                penByte.IsBitSet(1),
-                penByte.IsBitSet(2),
-            ];
+            int btnIndex = ((penByte >> 1) & 1) | (((penByte >> 2) & 1) << 1);
+            PenButtons = StaticPenButtons[btnIndex];
 
             Eraser = penByte.IsBitSet(3);
         }

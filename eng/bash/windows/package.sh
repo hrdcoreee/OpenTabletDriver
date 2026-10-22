@@ -14,6 +14,5 @@ pkg_root="${OUTPUT}/${PKG_FILE_DISPLAY_NAME}"
 move_to_nested "${OUTPUT}" "${pkg_root}"
 
 echo "Copying Windows assets"
-cp "${pkg_script_root}/convert_to_portable.bat" "${pkg_root}/"
 
 echo "Packaging finished! Loose file contents ready in ${pkg_root}"

@@ -29,7 +29,7 @@ namespace OpenTabletDriver.Desktop.Interop.Display
             }
 
             var monitors = GetDisplays();
-            var primary = monitors.First(m => m.IsPrimary);
+            var primary = monitors.FirstOrDefault(m => m.IsPrimary) ?? monitors.FirstOrDefault();
 
             var displays = new List<IDisplay>();
             displays.Add(this);
@@ -43,11 +43,25 @@ namespace OpenTabletDriver.Desktop.Interop.Display
                 displays.Add(display);
             }
 
-            var x = primary.Left - monitors.Min(m => m.Left);
-            var y = primary.Top - monitors.Min(m => m.Top);
+            if (primary != null && monitors.Count > 0)
+            {
+                var minLeft = monitors.Min(m => m.Left);
+                var minTop = monitors.Min(m => m.Top);
+                var maxRight = monitors.Max(m => m.Right);
+                var maxBottom = monitors.Max(m => m.Bottom);
+
+                Width = maxRight - minLeft;
+                Height = maxBottom - minTop;
+                Position = new Vector2(primary.Left - minLeft, primary.Top - minTop);
+            }
+            else
+            {
+                Width = 1920;
+                Height = 1080;
+                Position = Vector2.Zero;
+            }
 
             Displays = displays;
-            Position = new Vector2(x, y);
         }
 
         private static List<DisplayInfo> GetDisplays()
@@ -79,27 +93,8 @@ namespace OpenTabletDriver.Desktop.Interop.Display
             return displayCollection;
         }
 
-        private static IEnumerable<DisplayInfo> InternalDisplays => GetDisplays().OrderBy(e => e.Left);
-
-        public float Width
-        {
-            get
-            {
-                var left = InternalDisplays.Min(d => d.Left);
-                var right = InternalDisplays.Max(d => d.Right);
-                return right - left;
-            }
-        }
-
-        public float Height
-        {
-            get
-            {
-                var top = InternalDisplays.Min(d => d.Top);
-                var bottom = InternalDisplays.Max(d => d.Bottom);
-                return bottom - top;
-            }
-        }
+        public float Width { private set; get; }
+        public float Height { private set; get; }
 
         public Vector2 Position { private set; get; }
 

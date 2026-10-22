@@ -25,6 +25,13 @@ namespace OpenTabletDriver.UX.Controls
 
             control.Pages.Add(new TabPage
             {
+                Text = "Connection",
+                Padding = 5,
+                Content = connectionPanel = new()
+            });
+
+            control.Pages.Add(new TabPage
+            {
                 Text = "Filters",
                 Padding = 5,
                 Content = filterEditor = new()
@@ -33,7 +40,8 @@ namespace OpenTabletDriver.UX.Controls
             control.Pages.Add(new TabPage
             {
                 Text = "Pen Settings",
-                Content = penBindingEditor = new PenBindingEditor()
+                Content = penBindingEditor = new PenBindingEditor(),
+                Visible = App.ShowPenSettings
             });
 
             control.Pages.Add(new TabPage
@@ -62,7 +70,7 @@ namespace OpenTabletDriver.UX.Controls
                 Padding = 5,
                 Content = placeholder = new Placeholder
                 {
-                    Text = "No tablets are detected."
+                    Text = "Waiting for tabletizer connection...\n\nConnect via USB (ADB) or open the tabletizer app over Wi-Fi."
                 }
             });
 
@@ -83,18 +91,11 @@ namespace OpenTabletDriver.UX.Controls
             toolEditor.StoreCollectionBinding.Bind(App.Current, a => a.Settings.Tools);
 
             outputModeEditor.SetDisplaySize(DesktopInterop.VirtualScreen?.Displays);
-
-            Log.Output += (_, message) => Application.Instance.AsyncInvoke(() =>
-            {
-                if (message.Level > LogLevel.Info)
-                {
-                    tabControl.SelectedPage = logView.Parent as TabPage;
-                }
-            });
         }
 
         private TabControl tabControl;
         private Placeholder placeholder;
+        private TabletizerConnectionPanel connectionPanel;
         private LogView logView;
         private OutputModeEditor outputModeEditor;
         private BindingEditor penBindingEditor, auxBindingEditor, mouseBindingEditor;
@@ -133,9 +134,10 @@ namespace OpenTabletDriver.UX.Controls
                 bool switchToOutput = tabControl.SelectedPage == placeholder.Parent;
 
                 SetPageVisibility(placeholder, false);
+                SetPageVisibility(connectionPanel, true);
                 SetPageVisibility(outputModeEditor, true);
                 SetPageVisibility(filterEditor, true);
-                SetPageVisibility(penBindingEditor, true);
+                SetPageVisibility(penBindingEditor, App.ShowPenSettings);
                 SetPageVisibility(auxBindingEditor, tablet.Properties.Specifications.AuxiliaryButtons != null);
 
                 for (int i = 0; i < wheelBindingEditors.Count; i++)
@@ -150,6 +152,7 @@ namespace OpenTabletDriver.UX.Controls
             else
             {
                 SetPageVisibility(placeholder, true);
+                SetPageVisibility(connectionPanel, true);
                 SetPageVisibility(outputModeEditor, false);
                 SetPageVisibility(filterEditor, false);
                 SetPageVisibility(penBindingEditor, false);
@@ -159,7 +162,7 @@ namespace OpenTabletDriver.UX.Controls
                 SetPageVisibility(mouseBindingEditor, false);
                 SetPageVisibility(toolEditor, false);
 
-                if (tabControl.SelectedPage != logView.Parent)
+                if (tabControl.SelectedPage != logView.Parent && tabControl.SelectedPage != connectionPanel.Parent)
                 {
                     tabControl.SelectedIndex = Profile == null ?
                         tabControl.Pages.IndexOf(placeholder.Parent as TabPage) :

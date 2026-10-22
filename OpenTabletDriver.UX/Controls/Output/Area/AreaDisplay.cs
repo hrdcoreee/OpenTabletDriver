@@ -247,7 +247,7 @@ namespace OpenTabletDriver.UX.Controls.Output.Area
             new SizeF(Area.Width, Area.Height)
         );
 
-        public float PixelScale => CalculateScale(FullAreaBounds ?? throw new InvalidOperationException($"Unable to look up pixel scale when {nameof(FullAreaBounds)} is unset"));
+        public float PixelScale => FullAreaBounds.HasValue ? CalculateScale(FullAreaBounds.Value) : 1f;
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
@@ -282,16 +282,19 @@ namespace OpenTabletDriver.UX.Controls.Output.Area
         {
             base.OnMouseMove(e);
 
-            if (mouseDragging && Area != null)
+            if (mouseDragging && Area != null && FullAreaBounds.HasValue)
             {
+                var scale = PixelScale;
+                if (scale <= 0f) return;
+
                 if (mouseOffset != null && viewModelOffset.HasValue)
                 {
                     var delta = e.Location - mouseOffset.Value;
 
                     delta.Rotate(Rotation);
 
-                    var newX = viewModelOffset.Value.X + (delta.X / PixelScale);
-                    var newY = viewModelOffset.Value.Y + (delta.Y / PixelScale);
+                    var newX = viewModelOffset.Value.X + (delta.X / scale);
+                    var newY = viewModelOffset.Value.Y + (delta.Y / scale);
 
                     Area.X = newX;
                     Area.Y = newY;
@@ -349,8 +352,8 @@ namespace OpenTabletDriver.UX.Controls.Output.Area
 
         private void DrawBackground(Graphics graphics, float scale)
         {
-            Debug.Assert(FullAreaBounds.HasValue);
-            Debug.Assert(AreaBounds != null);
+            if (!FullAreaBounds.HasValue || AreaBounds == null)
+                return;
 
             using (graphics.SaveTransformState())
             {
@@ -404,6 +407,9 @@ namespace OpenTabletDriver.UX.Controls.Output.Area
 
         private void DrawRatioText(Graphics graphics, RectangleF area, AreaSettings areaSettings)
         {
+            if (areaSettings.Height <= 0)
+                return;
+
             string ratio = Math.Round(areaSettings.Width / areaSettings.Height, 4).ToString();
             SizeF ratioMeasure = graphics.MeasureString(Font, ratio);
             var offsetY = area.Center.Y + (ratioMeasure.Height / 2);

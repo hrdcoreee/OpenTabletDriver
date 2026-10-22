@@ -51,11 +51,24 @@ namespace OpenTabletDriver.UX
         {
             if (SystemInterop.CurrentPlatform == PluginPlatform.Windows)
             {
-                var x = Owner.Location.X + (Owner.Size.Width / 2);
-                var y = Owner.Location.Y + (Owner.Size.Height / 2);
-                var center = new PointF(x, y);
+                if (Owner != null)
+                {
+                    var x = Owner.Location.X + (Owner.Size.Width / 2);
+                    var y = Owner.Location.Y + (Owner.Size.Height / 2);
+                    var center = new PointF(x, y);
 
-                Location = new Point((int)(center.X - (ClientSize.Width / 2)), (int)(center.Y - (ClientSize.Height / 2)));
+                    Location = new Point((int)(center.X - (ClientSize.Width / 2)), (int)(center.Y - (ClientSize.Height / 2)));
+                }
+                else
+                {
+                    var screen = Screen.FromPoint(Mouse.Position) ?? Screen.PrimaryScreen;
+                    if (screen != null)
+                    {
+                        var x = screen.WorkingArea.Center.X - (ClientSize.Width / 2);
+                        var y = screen.WorkingArea.Center.Y - (ClientSize.Height / 2);
+                        Location = new Point((int)x, (int)y);
+                    }
+                }
             }
         }
     }
