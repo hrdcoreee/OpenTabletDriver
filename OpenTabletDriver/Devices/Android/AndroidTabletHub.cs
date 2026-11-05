@@ -254,6 +254,7 @@ namespace OpenTabletDriver.Devices.Android
                             var (adbActive, _) = TryAdbForward(adb, port);
                             if (adbActive)
                             {
+                                RememberTabletizerAdbForward(adb, port);
                                 Log.Write(nameof(AndroidTabletHub), "USB connection detected! Upgrading from Wi-Fi to zero-latency USB connection...", LogLevel.Info);
                                 lock (_sync)
                                 {
@@ -381,12 +382,26 @@ namespace OpenTabletDriver.Devices.Android
         {
             try
             {
+                var devicesResult = RunAdbCommand(adbPath, "devices");
+                var deviceSerials = devicesResult.standardOutput
+                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Skip(1)
+                    .Select(line => line.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                    .Where(parts => parts.Length >= 2 && parts[1].Equals("device", StringComparison.OrdinalIgnoreCase))
+                    .Select(parts => parts[0])
+                    .ToArray();
+
+                if (deviceSerials.Length == 0)
+                    return (false, "ADB: No authorized Android device detected. Connect one phone and accept its USB debugging prompt.");
+                if (deviceSerials.Length > 1)
+                    return (false, "ADB: Multiple Android devices are connected. Disconnect extra phones or emulators before using tabletizer over USB.");
+
                 using var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
                         FileName = adbPath,
-                        Arguments = $"forward tcp:{port} tcp:{port}",
+                        Arguments = $"-s {deviceSerials[0]} forward tcp:{port} tcp:{port}",
                         CreateNoWindow = true,
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
@@ -473,7 +488,7 @@ namespace OpenTabletDriver.Devices.Android
             }
         }
 
-        private static void RunAdbCommand(string adbPath, string arguments)
+        private static (string standardOutput, string standardError) RunAdbCommand(string adbPath, string arguments)
         {
             using var process = new Process
             {
@@ -488,11 +503,16 @@ namespace OpenTabletDriver.Devices.Android
                 }
             };
             process.Start();
+            string standardOutput = process.StandardOutput.ReadToEnd();
+            string standardError = process.StandardError.ReadToEnd();
             if (!process.WaitForExit(1500))
             {
                 try { process.Kill(); } catch { }
                 throw new TimeoutException($"ADB command timed out: {arguments}");
             }
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException($"ADB command failed: {arguments}. {standardError.Trim()}");
+            return (standardOutput, standardError);
         }
 
         private static string? _cachedAdbPath;
