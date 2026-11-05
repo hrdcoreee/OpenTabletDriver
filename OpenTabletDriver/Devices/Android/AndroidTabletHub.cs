@@ -35,6 +35,8 @@ namespace OpenTabletDriver.Devices.Android
         private AndroidTabletEndpoint? _activeEndpoint;
         private string? _lastDiscoveredBeaconIp;
         private CancellationTokenSource? _beaconCts;
+        private string? _tabletizerAdbPath;
+        private int _tabletizerAdbForwardPort;
         private bool _isDisposed;
 
         public AndroidTabletHub()
@@ -274,6 +276,7 @@ namespace OpenTabletDriver.Devices.Android
                         var (adbActive, _) = TryAdbForward(adbPath, port);
                         if (adbActive)
                         {
+                            RememberTabletizerAdbForward(adbPath, port);
                             candidates.Add(("127.0.0.1", port, "USB (ADB tunnel)"));
                         }
                     }
@@ -434,6 +437,64 @@ namespace OpenTabletDriver.Devices.Android
             }
         }
 
+        private void RememberTabletizerAdbForward(string adbPath, int port)
+        {
+            lock (_sync)
+            {
+                _tabletizerAdbPath = adbPath;
+                _tabletizerAdbForwardPort = port;
+            }
+        }
+
+        private void StopTabletizerAdb()
+        {
+            string? adbPath;
+            int forwardPort;
+            lock (_sync)
+            {
+                adbPath = _tabletizerAdbPath;
+                forwardPort = _tabletizerAdbForwardPort;
+                _tabletizerAdbPath = null;
+                _tabletizerAdbForwardPort = 0;
+            }
+
+            if (string.IsNullOrWhiteSpace(adbPath) || forwardPort is < 1 or > 65535)
+                return;
+
+            try
+            {
+                RunAdbCommand(adbPath, $"forward --remove tcp:{forwardPort}");
+                RunAdbCommand(adbPath, "kill-server");
+                Log.Write(nameof(AndroidTabletHub), "Stopped tabletizer ADB port forwarding and ADB server.", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Log.Write(nameof(AndroidTabletHub), $"Failed to stop tabletizer ADB server: {ex.Message}", LogLevel.Warning);
+            }
+        }
+
+        private static void RunAdbCommand(string adbPath, string arguments)
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = adbPath,
+                    Arguments = arguments,
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                }
+            };
+            process.Start();
+            if (!process.WaitForExit(1500))
+            {
+                try { process.Kill(); } catch { }
+                throw new TimeoutException($"ADB command timed out: {arguments}");
+            }
+        }
+
         private static string? _cachedAdbPath;
 
         private static string? FindAdbPath()
@@ -558,6 +619,7 @@ namespace OpenTabletDriver.Devices.Android
 
             _isDisposed = true;
             TabletizerConfig.Changed -= OnConfigChanged;
+            StopTabletizerAdb();
             lock (_beaconSync)
             {
                 _beaconCts?.Cancel();
