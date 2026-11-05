@@ -146,6 +146,7 @@ namespace OpenTabletDriver.Devices.Android
 
         public void OnEndpointDisconnected(AndroidTabletEndpoint endpoint)
         {
+            bool shouldReconnect = false;
             lock (_sync)
             {
                 if (_activeEndpoint == endpoint)
@@ -155,8 +156,11 @@ namespace OpenTabletDriver.Devices.Android
                     _currentDevices = [];
                     _activeEndpoint = null;
                     DevicesChanged?.Invoke(this, new DevicesChangedEventArgs(_oldDevices, _currentDevices));
+                    shouldReconnect = true;
                 }
             }
+            if (shouldReconnect)
+                SignalReconnect();
         }
 
         private DateTime _lastUsbCheckTime = DateTime.MinValue;
