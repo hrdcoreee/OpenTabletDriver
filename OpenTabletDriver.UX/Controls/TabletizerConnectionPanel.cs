@@ -20,6 +20,7 @@ namespace OpenTabletDriver.UX.Controls
         private readonly TextBox _portBox;
         private readonly Button _saveButton;
         private readonly Button _reconnectButton;
+        private readonly Button _forgetDeviceButton;
 
         public TabletizerConnectionPanel()
         {
@@ -90,12 +91,25 @@ namespace OpenTabletDriver.UX.Controls
             };
             _saveButton.Click += async (s, e) =>
             {
+                if (!TabletizerConfig.TryValidateWifiHost(_manualHostBox.Text, out var hostError))
+                {
+                    MessageBox.Show(this, hostError, "tabletizer Connection Settings", MessageBoxButtons.OK, MessageBoxType.Warning);
+                    _manualHostBox.Focus();
+                    return;
+                }
+
+                if (!TabletizerConfig.TryValidatePort(_portBox.Text, out int port, out var portError))
+                {
+                    MessageBox.Show(this, portError, "tabletizer Connection Settings", MessageBoxButtons.OK, MessageBoxType.Warning);
+                    _portBox.Focus();
+                    return;
+                }
+
                 config.EnableWifi = _enableWifiCheck.Checked ?? true;
                 config.PreferUsb = _preferUsbCheck.Checked ?? true;
                 config.AutoDiscovery = _autoDiscoveryCheck.Checked ?? true;
                 config.ManualWifiHost = string.IsNullOrWhiteSpace(_manualHostBox.Text) ? null : _manualHostBox.Text.Trim();
-                if (int.TryParse(_portBox.Text, out int port) && port > 0)
-                    config.Port = port;
+                config.Port = port;
 
                 config.Save();
 
@@ -111,6 +125,24 @@ namespace OpenTabletDriver.UX.Controls
                 }
 
                 MessageBox.Show(this, "Connection settings saved successfully!", "tabletizer", MessageBoxButtons.OK, MessageBoxType.Information);
+                RefreshStatus();
+            };
+
+            _forgetDeviceButton = new Button
+            {
+                Text = "Forget Remembered Device"
+            };
+            _forgetDeviceButton.Click += (s, e) =>
+            {
+                AndroidTabletHub.Instance?.ForgetLastDiscoveredWifiHost();
+                if (AndroidTabletHub.Instance == null)
+                {
+                    config.LastDiscoveredWifiHost = null;
+                    config.Save();
+                }
+
+                _discoveredLabel.Text = "Last discovered Wi-Fi phone IP: None";
+                _forgetDeviceButton.Enabled = false;
                 RefreshStatus();
             };
 
@@ -162,7 +194,12 @@ namespace OpenTabletDriver.UX.Controls
                         _preferUsbCheck,
                         _enableWifiCheck,
                         _autoDiscoveryCheck,
-                        _discoveredLabel,
+                        new StackLayout
+                        {
+                            Orientation = Orientation.Horizontal,
+                            Spacing = 8,
+                            Items = { _discoveredLabel, _forgetDeviceButton }
+                        },
                         new TableLayout
                         {
                             Spacing = new Size(10, 6),
@@ -236,6 +273,7 @@ namespace OpenTabletDriver.UX.Controls
 
             App.Driver.TabletsChanged += OnDriverTabletsChanged;
             UnLoad += (s, e) => App.Driver.TabletsChanged -= OnDriverTabletsChanged;
+            _forgetDeviceButton.Enabled = !string.IsNullOrWhiteSpace(config.LastDiscoveredWifiHost);
             RefreshStatus();
         }
 
@@ -275,7 +313,14 @@ namespace OpenTabletDriver.UX.Controls
                     return;
                 }
 
-                _statusLabel.Text = "Disconnected — Searching for tabletizer on USB & Wi-Fi...";
+                var config = TabletizerConfig.Instance;
+                const string retryContext = "USB/ADB is tried before Wi-Fi targets";
+                string wifiContext = !config.EnableWifi
+                    ? " Wi-Fi is disabled."
+                    : !config.AutoDiscovery
+                        ? " Wi-Fi auto-discovery is disabled; using the manual IP only."
+                        : " Wi-Fi order: TABLETIZER_HOST, manual IP, then discovered phone.";
+                _statusLabel.Text = $"Disconnected — retrying every 1.5 seconds. {retryContext}.{wifiContext}";
                 _statusLabel.TextColor = Colors.DarkOrange;
             }
             catch

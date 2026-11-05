@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net;
 using Newtonsoft.Json;
 
 namespace OpenTabletDriver.Devices.Android
@@ -75,6 +76,45 @@ namespace OpenTabletDriver.Devices.Android
         public string? ManualWifiHost { get; set; } = string.Empty;
         public string? LastDiscoveredWifiHost { get; set; } = string.Empty;
         public int Port { get; set; } = 3240;
+
+        public static bool TryValidateWifiHost(string? host, out string? error)
+        {
+            error = null;
+            if (string.IsNullOrWhiteSpace(host))
+                return true;
+
+            host = host.Trim();
+            if (IPAddress.TryParse(host, out var address))
+            {
+                if (IPAddress.IsLoopback(address))
+                {
+                    error = "Manual Phone IP must not be a loopback address. Leave it blank for USB/ADB.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || Uri.CheckHostName(host) == UriHostNameType.Unknown)
+            {
+                error = "Enter a valid phone IP address or host name, or leave it blank for automatic discovery.";
+                return false;
+            }
+
+            return true;
+        }
+
+        public static bool TryValidatePort(string? portText, out int port, out string? error)
+        {
+            error = null;
+            if (!int.TryParse(portText?.Trim(), out port) || port is < 1 or > 65535)
+            {
+                error = "Port must be a number from 1 to 65535.";
+                return false;
+            }
+
+            return true;
+        }
 
         public static TabletizerConfig Load()
         {

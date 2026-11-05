@@ -28,18 +28,20 @@ namespace OpenTabletDriver.Devices.Android
         private readonly CancellationTokenSource _cts = new();
         private readonly SemaphoreSlim _wakeSignal = new(0, 1);
         private readonly object _sync = new();
+        private readonly object _beaconSync = new();
 
         private List<IDeviceEndpoint> _oldDevices = [];
         private List<IDeviceEndpoint> _currentDevices = [];
         private AndroidTabletEndpoint? _activeEndpoint;
         private string? _lastDiscoveredBeaconIp;
+        private CancellationTokenSource? _beaconCts;
         private bool _isDisposed;
 
         public AndroidTabletHub()
         {
             Instance = this;
-            TabletizerConfig.Changed += SignalReconnect;
-            StartBeaconListener();
+            TabletizerConfig.Changed += OnConfigChanged;
+            UpdateBeaconListener();
             Task.Run(ConnectionWorkerAsync);
         }
 
@@ -65,6 +67,50 @@ namespace OpenTabletDriver.Devices.Android
             {
                 try { _wakeSignal.Release(); } catch { }
             }
+        }
+
+        private void OnConfigChanged()
+        {
+            UpdateBeaconListener();
+            SignalReconnect();
+        }
+
+        // The UDP socket only exists while discovery is enabled. This both avoids
+        // unsolicited discovery traffic and lets the setting take effect immediately.
+        private void UpdateBeaconListener()
+        {
+            CancellationTokenSource? beaconCtsToCancel = null;
+            lock (_beaconSync)
+            {
+                if (TabletizerConfig.Instance is { AutoDiscovery: true, EnableWifi: true })
+                {
+                    if (_beaconCts == null)
+                    {
+                        var beaconCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+                        _beaconCts = beaconCts;
+                        _ = Task.Run(() => StartBeaconListenerAsync(beaconCts.Token));
+                    }
+                }
+                else if (_beaconCts != null)
+                {
+                    beaconCtsToCancel = _beaconCts;
+                    _beaconCts = null;
+                }
+            }
+
+            if (beaconCtsToCancel != null)
+            {
+                beaconCtsToCancel.Cancel();
+                beaconCtsToCancel.Dispose();
+            }
+        }
+
+        public void ForgetLastDiscoveredWifiHost()
+        {
+            _lastDiscoveredBeaconIp = null;
+            var config = TabletizerConfig.Instance;
+            config.LastDiscoveredWifiHost = null;
+            config.Save();
         }
 
         public static void ApplyTabletAreaSync(float widthMm, float heightMm, float posXMm, float posYMm, int ratio, int scale)
@@ -113,63 +159,63 @@ namespace OpenTabletDriver.Devices.Android
 
         private DateTime _lastUsbCheckTime = DateTime.MinValue;
 
-        private void StartBeaconListener()
+        private async Task StartBeaconListenerAsync(CancellationToken cancellationToken)
         {
-            Task.Run(async () =>
+            while (!cancellationToken.IsCancellationRequested)
             {
-                while (!_cts.Token.IsCancellationRequested)
+                UdpClient? udpClient = null;
+                try
                 {
-                    UdpClient? udpClient = null;
-                    try
+                    udpClient = new UdpClient();
+                    udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                    udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, BEACON_PORT));
+
+                    while (!cancellationToken.IsCancellationRequested)
                     {
-                        udpClient = new UdpClient();
-                        udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                        udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, BEACON_PORT));
+                        var result = await udpClient.ReceiveAsync(cancellationToken);
+                        if (TabletizerConfig.Instance is not { AutoDiscovery: true, EnableWifi: true })
+                            continue;
 
-                        while (!_cts.Token.IsCancellationRequested)
+                        string message = System.Text.Encoding.UTF8.GetString(result.Buffer);
+                        if (message.StartsWith("TABLETIZER_BEACON"))
                         {
-                            var result = await udpClient.ReceiveAsync(_cts.Token);
-                            string message = System.Text.Encoding.UTF8.GetString(result.Buffer);
-                            if (message.StartsWith("TABLETIZER_BEACON"))
-                            {
-                                var ip = result.RemoteEndPoint.Address;
-                                if (ip.IsIPv4MappedToIPv6)
-                                    ip = ip.MapToIPv4();
-                                string ipStr = ip.ToString();
+                            var ip = result.RemoteEndPoint.Address;
+                            if (ip.IsIPv4MappedToIPv6)
+                                ip = ip.MapToIPv4();
+                            string ipStr = ip.ToString();
 
-                                if (_lastDiscoveredBeaconIp != ipStr)
-                                {
-                                    _lastDiscoveredBeaconIp = ipStr;
-                                    Log.Write(nameof(AndroidTabletHub), $"Discovered tabletizer via Wi-Fi beacon at {ipStr}:{DEFAULT_PORT}", LogLevel.Info);
-                                    TabletizerConfig.Instance.LastDiscoveredWifiHost = ipStr;
-                                    TabletizerConfig.Instance.Save();
-                                    SignalReconnect();
-                                }
+                            if (_lastDiscoveredBeaconIp != ipStr)
+                            {
+                                _lastDiscoveredBeaconIp = ipStr;
+                                Log.Write(nameof(AndroidTabletHub), $"Discovered tabletizer via Wi-Fi beacon at {ipStr}:{DEFAULT_PORT}", LogLevel.Info);
+                                TabletizerConfig.Instance.LastDiscoveredWifiHost = ipStr;
+                                TabletizerConfig.Instance.Save();
+                                SignalReconnect();
                             }
                         }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Log.Write(nameof(AndroidTabletHub), $"Beacon listener transient error: {ex.Message}. Retrying in 5s...", LogLevel.Debug);
+                    try
+                    {
+                        await Task.Delay(5000, cancellationToken);
                     }
                     catch (OperationCanceledException)
                     {
                         break;
                     }
-                    catch (Exception ex)
-                    {
-                        Log.Write(nameof(AndroidTabletHub), $"Beacon listener transient error: {ex.Message}. Retrying in 5s...", LogLevel.Debug);
-                        try
-                        {
-                            await Task.Delay(5000, _cts.Token);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            break;
-                        }
-                    }
-                    finally
-                    {
-                        udpClient?.Dispose();
-                    }
                 }
-            }, _cts.Token);
+                finally
+                {
+                    udpClient?.Dispose();
+                }
+            }
         }
 
         private async Task ConnectionWorkerAsync()
@@ -511,7 +557,13 @@ namespace OpenTabletDriver.Devices.Android
                 return;
 
             _isDisposed = true;
-            TabletizerConfig.Changed -= SignalReconnect;
+            TabletizerConfig.Changed -= OnConfigChanged;
+            lock (_beaconSync)
+            {
+                _beaconCts?.Cancel();
+                _beaconCts?.Dispose();
+                _beaconCts = null;
+            }
             _cts.Cancel();
             _cts.Dispose();
             _wakeSignal.Dispose();
